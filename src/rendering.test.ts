@@ -13,6 +13,7 @@ import {
   loadExampleRaw,
   render,
   renderRaw,
+  tableNamed,
   withSchemaMigrations,
 } from "./test-support";
 
@@ -308,6 +309,21 @@ describe("generated platform rendering", () => {
       const casTenants = cloneSpec(await loadExampleRaw());
       addSingletonCasTable(casTenants);
       typecheck(swiftOf(casTenants));
+      // A table that reads its version back with no read of its own, and one with two
+      // reads: the version-reader constant is declared once in each.
+      const noRead = cloneSpec(await loadExampleRaw());
+      const reader = tableNamed(noRead, "signed_in_reader");
+      reader.operations = reader.operations.filter(
+        (operation) => operation.kind !== "read",
+      );
+      typecheck(swiftOf(noRead));
+      const twoReads = cloneSpec(await loadExampleRaw());
+      tableNamed(twoReads, "signed_in_reader").operations.push({
+        name: "read_again_signed_in_reader",
+        kind: "read",
+        predicate: [{ column: "singleton_id", operator: "=" }],
+      });
+      typecheck(swiftOf(twoReads));
     },
   );
 

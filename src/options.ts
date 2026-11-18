@@ -1,6 +1,8 @@
 // The names a consumer supplies to the renderer beside its spec, and the shape each must
 // have to land in generated source.
 
+import { KOTLIN_HARD_KEYWORDS } from "./identifiers";
+
 // The Kotlin package curlew-sqlite publishes its binding and engine guards in. Its JNI
 // shim resolves the binding class by this name, so an app taking that library as it is
 // published has nothing to supply; an app that vendors the binding into its own package
@@ -38,6 +40,16 @@ export function resolveRenderOptions(
     if (!KOTLIN_PACKAGE_PATTERN.test(resolved[key])) {
       throw new Error(
         `${key} "${resolved[key]}" must be a lowercase dotted Kotlin package name`,
+      );
+    }
+    // A `package` or `import` line takes no backticks from this generator, so a
+    // keyword segment (`org.example.object`) does not parse.
+    const keyword = resolved[key]
+      .split(".")
+      .find((segment) => KOTLIN_HARD_KEYWORDS.has(segment));
+    if (keyword !== undefined) {
+      throw new Error(
+        `${key} "${resolved[key]}" has the segment "${keyword}", which is a Kotlin keyword`,
       );
     }
   }

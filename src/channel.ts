@@ -70,7 +70,9 @@ export interface NormalizedChannel {
 
 // Swift's own keywords, which a wire suffix is free to collide with (`setTheme`
 // does not, but `default` or `case` would). Escaped with backticks rather than
-// renamed, so the enum case still reads as the wire name it carries.
+// renamed, so the enum case still reads as the wire name it carries. It escapes some
+// words Swift admits as a case name (`final`, `open`), which is harmless; the
+// identifier checks keep their own, measured list.
 const SWIFT_RESERVED_WORDS = new Set([
   "as",
   "associatedtype",
@@ -104,6 +106,7 @@ const SWIFT_RESERVED_WORDS = new Set([
   "nil",
   "open",
   "operator",
+  "precedencegroup",
   "private",
   "protocol",
   "public",

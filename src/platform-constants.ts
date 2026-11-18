@@ -98,6 +98,20 @@ ${steps}
             )`;
 }
 
+// The operation the version-reader SQL is emitted after, or undefined when the table has
+// no version reader to use it (only an insert or a compare-and-set reads the version
+// back). Exactly one anchor per table, so the constant is declared once whatever the
+// table's reads: after its first read, or after its last operation when it has none.
+function versionReaderAnchor(
+  table: NormalizedTable,
+): NormalizedOperation | undefined {
+  if (!table.emitsVersionReader) return undefined;
+  return (
+    table.operations.find((operation) => operation.category === "read") ??
+    table.operations[table.operations.length - 1]
+  );
+}
+
 function kotlinTableSql(table: NormalizedTable): string[] {
   const create = indentBlock(
     createTableStatement(table.spec, "    "),
@@ -147,15 +161,6 @@ ${selectColumns}
             FROM ${table.spec.name}
 ${readTail(operation, "            ")}
             """`);
-      // The version-reader SQL is used only by the private version reader, which is
-      // emitted only when an insert or compare-and-set reads the version back.
-      if (table.emitsVersionReader) {
-        consts.push(`        private val ${table.kotlinReadVersionConst} = """
-            SELECT ${VERSION_COLUMN}
-            FROM ${table.spec.name}
-            WHERE ${table.slotColumnName} = ?
-            """`);
-      }
     } else if (operation.category === "insert") {
       consts.push(kotlinInsertSql(table, operation));
     } else if (operation.category === "insertForCurrentOwner") {
@@ -218,6 +223,13 @@ ${resetSetLines(operation, "                ")}
       throw new Error(
         `${operation.spec.name} has no Kotlin SQL emitter for category ${operation.category}`,
       );
+    }
+    if (operation === versionReaderAnchor(table)) {
+      consts.push(`        private val ${table.kotlinReadVersionConst} = """
+            SELECT ${VERSION_COLUMN}
+            FROM ${table.spec.name}
+            WHERE ${table.slotColumnName} = ?
+            """`);
     }
   }
   return consts;
@@ -391,15 +403,6 @@ ${selectColumns}
         FROM ${table.spec.name}
 ${readTail(operation, "        ")}
         """`);
-      // The version-reader SQL is used only by the private version reader, which is
-      // emitted only when an insert or compare-and-set reads the version back.
-      if (table.emitsVersionReader) {
-        consts.push(`    private static let ${table.swiftReadVersionConst} = """
-        SELECT ${VERSION_COLUMN}
-        FROM ${table.spec.name}
-        WHERE ${table.slotColumnName} = ?
-        """`);
-      }
     } else if (operation.category === "insert") {
       consts.push(swiftInsertSql(table, operation));
     } else if (operation.category === "insertForCurrentOwner") {
@@ -461,6 +464,13 @@ ${resetSetLines(operation, "          ")}
       throw new Error(
         `${operation.spec.name} has no Swift SQL emitter for category ${operation.category}`,
       );
+    }
+    if (operation === versionReaderAnchor(table)) {
+      consts.push(`    private static let ${table.swiftReadVersionConst} = """
+        SELECT ${VERSION_COLUMN}
+        FROM ${table.spec.name}
+        WHERE ${table.slotColumnName} = ?
+        """`);
     }
   }
   return consts;

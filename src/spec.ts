@@ -16,6 +16,8 @@ import { validateKeyAllocation } from "./key-allocation";
 
 import { validateIndexes } from "./indexes";
 
+import { validateDerivedNames } from "./identifiers";
+
 import { validateTableShape } from "./spec-shape";
 
 const SUPPORTED_SPEC_VERSION = 3;
@@ -64,6 +66,8 @@ export function normalizeLocalSQLiteSpec(
   resolveOwnerSources(tables);
   resolveCoWrites(tables);
   validateKeyAllocation(tables);
+  const channel = normalizeLocalSQLiteChannel(raw.channel);
+  validateDerivedNames(tables, channel);
 
   // After the tables rather than before them: the ladder is replayed against the
   // shapes they declare, and only a normalized table says what the store a step
@@ -92,7 +96,7 @@ export function normalizeLocalSQLiteSpec(
     migrations,
     tables,
     obsoleteTables: raw.obsoleteTables,
-    channel: normalizeLocalSQLiteChannel(raw.channel),
+    channel,
     anyTransaction,
   };
 }

@@ -268,15 +268,19 @@ built; the others are worth knowing before you write such a spec.
 - **A baseline open of an untracked store that already holds an index fails** on
   the plain `CREATE INDEX`. A store reaches version 0 with indexes only if
   something other than this generator built it.
-- **Names are not checked for collisions or keywords after they are derived.**
-  Two operations whose names derive to the same method (`set_name_x` and
-  `set_name` on table `x`), channel methods that differ only in case,
-  overlapping insert and `alsoSet` columns, a column or subject named after a
-  Kotlin or Swift keyword, and a Kotlin package segment that is a keyword: each
-  fails to compile.
-- **A table whose writes read the version back but which has no `read`, or which
-  has more than one `read`,** emits its version-reader constant zero times or
-  twice: fails to compile.
+- **A derived name is not checked against the names the generator declares
+  itself.** Normalization refuses two spec entries that derive one method,
+  field, constant, type or channel case, and a name that is a Kotlin or Swift
+  keyword. An operation whose method is one the database class already declares,
+  such as `close`, or a brand named like a generated type, such as
+  `GeneratedLocalSQLiteDatabase`, is not refused: fails to compile.
+- **A method's parameters are not checked against each other or against its
+  locals.** An update that sets and compares one column without a `parameter`
+  alias, a column listed twice in `setColumns`, and an owner-sourced insert
+  whose co-write column shares a field with one of its own columns each declare
+  a parameter twice: fails to compile. A parameter named like a local of its
+  method, such as a column `owner` on a table with an `insertForCurrentOwner`,
+  is shadowed by that local, and its bind silently takes the local's value.
 
 ## Development
 
