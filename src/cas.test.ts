@@ -351,7 +351,7 @@ describe("row ownership and compare-and-set spec", () => {
     ] as const) {
       const db = new Database(":memory:");
       try {
-        db.exec(createTableStatement(table));
+        db.run(createTableStatement(table));
         db.query(sqlConstBody(content, constName)).run("reader");
         expect(
           db

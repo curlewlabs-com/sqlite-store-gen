@@ -14,6 +14,7 @@ import {
 } from "./sql";
 
 import { kotlinDeleteResult, swiftDeleteResult } from "./delete-summary";
+import { allocatedKeyColumn } from "./key-allocation";
 
 function kotlinValueClass(brand: string, type: "String" | "Long"): string {
   return `@JvmInline
@@ -226,7 +227,7 @@ const KOTLIN_NEWER_SCHEMA_EXCEPTION = `class LocalSQLiteNewerSchemaException(
     val onDiskVersion: Long,
     val supportedVersion: Long,
 ) : IllegalStateException(
-        "Generated local SQLite store schema version \$onDiskVersion is newer than supported \$supportedVersion",
+        "Generated local SQLite store schema version $onDiskVersion is newer than supported $supportedVersion",
     )`;
 
 const KOTLIN_GENERATED_EXCEPTION = `class LocalSQLiteGeneratedException(
@@ -241,7 +242,7 @@ const KOTLIN_GENERATED_EXCEPTION = `class LocalSQLiteGeneratedException(
 function kotlinOwnerSourcedInsertResult(table: NormalizedTable): string {
   const type = ownerSourcedInsertResultType(table);
   return `sealed interface ${type} {
-    ${table.operations.some((op) => op.spec.allocateKey !== undefined) ? `data class Recorded(val key: ${table.keyedSlot!.brand})` : "data object Recorded"} : ${type}
+    ${table.operations.some((op) => op.spec.allocateKey !== undefined) ? `data class Recorded(val key: ${allocatedKeyColumn(table).brand})` : "data object Recorded"} : ${type}
 
     data object NoCurrentOwner : ${type}
 
@@ -251,7 +252,7 @@ function kotlinOwnerSourcedInsertResult(table: NormalizedTable): string {
 
 function swiftOwnerSourcedInsertResult(table: NormalizedTable): string {
   return `enum ${ownerSourcedInsertResultType(table)}: Equatable, Sendable {
-    case recorded${table.operations.some((op) => op.spec.allocateKey !== undefined) ? `(key: ${table.keyedSlot!.brand})` : ""}
+    case recorded${table.operations.some((op) => op.spec.allocateKey !== undefined) ? `(key: ${allocatedKeyColumn(table).brand})` : ""}
     case noCurrentOwner
     case busy
 }`;

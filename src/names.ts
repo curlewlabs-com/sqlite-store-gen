@@ -6,5 +6,5 @@
 // `identifier_name` lint failure rather than a cosmetic slip. Uppercasing a digit is the
 // identity, so widening the class changes nothing for a segment that starts with a letter.
 export function toCamelCase(name: string): string {
-  return name.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
+  return name.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 }

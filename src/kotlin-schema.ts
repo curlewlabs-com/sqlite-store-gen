@@ -179,7 +179,7 @@ ${createLiveTables}
         try {
             val onDisk = readSchemaVersion()
             if (onDisk != SCHEMA_VERSION) {
-                check(onDisk == 0L) { "Store at \$onDisk is neither untracked nor current" }
+                check(onDisk == 0L) { "Store at $onDisk is neither untracked nor current" }
                 dropObsoleteTables()
                 createLiveTables()
                 setSchemaVersion()
@@ -241,7 +241,7 @@ function kotlinRunForwardMigrations(): string {
                 val onDisk = readSchemaVersion()
                 if (onDisk < migration.toVersion) {
                     check(onDisk == migration.toVersion - 1) {
-                        "Store at \$onDisk cannot take migration \${migration.toVersion}"
+                        "Store at $onDisk cannot take migration \${migration.toVersion}"
                     }
                     for (sql in migration.statements) {
                         execute(sql, "migrate to \${migration.toVersion}")
@@ -256,7 +256,7 @@ function kotlinRunForwardMigrations(): string {
         }
         val reached = readSchemaVersion()
         check(reached == SCHEMA_VERSION) {
-            "Forward migrations left schema at \$reached, expected \$SCHEMA_VERSION"
+            "Forward migrations left schema at $reached, expected $SCHEMA_VERSION"
         }
     }`;
 }

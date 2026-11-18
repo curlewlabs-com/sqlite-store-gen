@@ -535,7 +535,7 @@ function predicateCoverage(
   const indexes = table.indexes.map((index) => index.columns);
   if (countedOwnerCleanup) {
     return [table.primaryKey, ...table.uniqueKeys, ...indexes].some(
-      (columns) => columns.length > 0 && equalityColumns.has(columns[0]!),
+      ([first]) => first !== undefined && equalityColumns.has(first),
     )
       ? "key"
       : "none";

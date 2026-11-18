@@ -561,10 +561,11 @@ function normalizeBootstrapRow(
   // the row absent, and each reader answers from its own fail-closed default. An
   // object-shaped seed mapping is rejected for the same reason: this flag declares whether derivation
   // runs, never values that could diverge from the column defaults.
-  if (table.bootstrapRow !== true) {
+  const bootstrapRow: unknown = table.bootstrapRow;
+  if (bootstrapRow !== true) {
     throw new Error(
       `${table.name} bootstrapRow must be exactly true when present (got ${JSON.stringify(
-        table.bootstrapRow,
+        bootstrapRow,
       )}); omit the field for a table with no seeded row`,
     );
   }

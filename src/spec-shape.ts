@@ -153,7 +153,7 @@ function validateOperationShape(
       }
     }
   }
-  const exception = operation.boundedScanException;
+  const exception: unknown = operation.boundedScanException;
   if (exception !== undefined) {
     const what = `${operation.name} boundedScanException`;
     if (typeof exception !== "object" || exception === null) {

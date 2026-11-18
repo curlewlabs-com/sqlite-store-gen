@@ -175,9 +175,10 @@ ${indentBlock(coWriteUpdateSql(operation), "            ")}
     } else if (operation.category === "ensure") {
       consts.push(kotlinEnsureSql(table, operation));
     } else if (operation.category === "clear") {
-      if (operation.spec.deleteSummary !== undefined) {
+      const summary = operation.spec.deleteSummary;
+      if (summary !== undefined) {
         consts.push(
-          `        private const val ${operation.kotlinSqlConst}_SUMMARY = "${deleteSummarySql(table, operation)}"`,
+          `        private const val ${operation.kotlinSqlConst}_SUMMARY = "${deleteSummarySql(table, operation, summary)}"`,
         );
       }
       consts.push(`        private val ${operation.kotlinSqlConst} = """
@@ -205,7 +206,12 @@ ${indentBlock(coWriteUpdateSql(operation), "            ")}
 ${columnSetLines(operation, "            ", "                ")}
             WHERE ${updateWhereClause(table, operation)}
             """`);
-    } else if (operation.category === "defaultsReset") {
+    } else {
+      // Every category above is handled, so this branch is defaultsReset alone. A
+      // category added without an emitter fails the type check here rather than
+      // falling through to this UPDATE, which an unchecked else would silently
+      // generate for it.
+      operation.category satisfies "defaultsReset";
       // Every settable column not flagged survivesReset, set to its declared default
       // as a literal - the derived column list is what makes a column added later
       // reset without an edit here.
@@ -215,13 +221,6 @@ ${columnSetLines(operation, "            ", "                ")}
 ${resetSetLines(operation, "                ")}
             WHERE ${whereClause(operation.effectivePredicate)}
             """`);
-    } else {
-      // Unreachable: every category above is handled. A category added without an
-      // emitter throws here rather than falling through to a DELETE, which is what an
-      // unguarded else would silently generate for it.
-      throw new Error(
-        `${operation.spec.name} has no Kotlin SQL emitter for category ${operation.category}`,
-      );
     }
     if (operation === versionReaderAnchor(table)) {
       consts.push(`        private val ${table.kotlinReadVersionConst} = """
@@ -422,10 +421,11 @@ ${indentBlock(coWriteUpdateSql(operation), "        ")}
     } else if (operation.category === "ensure") {
       consts.push(swiftEnsureSql(table, operation));
     } else if (operation.category === "clear") {
-      if (operation.spec.deleteSummary !== undefined) {
+      const summary = operation.spec.deleteSummary;
+      if (summary !== undefined) {
         consts.push(
           `    private static let ${operation.swiftSqlConst}Summary = """
-        ${deleteSummarySql(table, operation).replace(" FROM ", "\n        FROM ")}
+        ${deleteSummarySql(table, operation, summary).replace(" FROM ", "\n        FROM ")}
         """`,
         );
       }
@@ -453,7 +453,9 @@ ${indentBlock(coWriteUpdateSql(operation), "        ")}
 ${columnSetLines(operation, "        ", "          ")}
         WHERE ${updateWhereClause(table, operation)}
         """`);
-    } else if (operation.category === "defaultsReset") {
+    } else {
+      // defaultsReset alone, held by the type check - see the Kotlin twin.
+      operation.category satisfies "defaultsReset";
       // Derived column list - see the Kotlin twin.
       consts.push(`    private static let ${operation.swiftSqlConst} = """
         UPDATE ${table.spec.name}
@@ -461,13 +463,6 @@ ${columnSetLines(operation, "        ", "          ")}
 ${resetSetLines(operation, "          ")}
         WHERE ${whereClause(operation.effectivePredicate)}
         """`);
-    } else {
-      // Unreachable: every category above is handled. A category added without an
-      // emitter throws here rather than falling through to a DELETE, which is what an
-      // unguarded else would silently generate for it.
-      throw new Error(
-        `${operation.spec.name} has no Swift SQL emitter for category ${operation.category}`,
-      );
     }
     if (operation === versionReaderAnchor(table)) {
       consts.push(`    private static let ${table.swiftReadVersionConst} = """

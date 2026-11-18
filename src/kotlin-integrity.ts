@@ -219,7 +219,7 @@ internal object LocalSQLiteIntegrityProbe {
                     LocalSQLiteRecoveryClass.PAGE_DAMAGE
                 },
             resultCode = null,
-            failureDetail = "integrity_check reported \$faultCount problem(s)",
+            failureDetail = "integrity_check reported $faultCount problem(s)",
         )
     }
 
