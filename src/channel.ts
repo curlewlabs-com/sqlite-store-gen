@@ -68,7 +68,7 @@ export interface NormalizedChannel {
   allMethods: NormalizedChannelMethod[];
 }
 
-// Swift's own keywords, which a wire suffix is free to collide with (`repoint`
+// Swift's own keywords, which a wire suffix is free to collide with (`setTheme`
 // does not, but `default` or `case` would). Escaped with backticks rather than
 // renamed, so the enum case still reads as the wire name it carries.
 const SWIFT_RESERVED_WORDS = new Set([

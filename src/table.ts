@@ -634,7 +634,7 @@ function validateTable(table: LocalSQLiteTableSpec): Set<string> {
 //
 // The predicate and guard rejections exist because each of them would
 // COMPILE and then quietly match no row: SQL equality against NULL is NULL, never true,
-// so `WHERE push_id = ?` bound to NULL and a literal `guard` on a nullable column each
+// so `WHERE margin_note = ?` bound to NULL and a literal `guard` on a nullable column each
 // return zero rows for a row that is sitting right there. A generated keyed read that
 // cannot find its own row is exactly the class the branded-predicate machinery exists to
 // make unexpressible, and it needs an IS NULL form rather than a bind to say what the
