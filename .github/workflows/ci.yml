@@ -67,7 +67,7 @@ jobs:
         with:
           repository: curlewlabs-com/curlew-sqlite
           # renovate: datasource=github-tags depName=curlewlabs-com/curlew-sqlite pin=digest
-          ref: 9534bc2e7946013ce51a628f6333905cccef1393 # v0.1.0
+          ref: 7346e624c990ad9fa4ba0473c1a504a1e46aab57 # v0.2.0
           path: vendor/curlew-sqlite
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -98,7 +98,7 @@ jobs:
         with:
           repository: curlewlabs-com/curlew-sqlite
           # renovate: datasource=github-tags depName=curlewlabs-com/curlew-sqlite pin=digest
-          ref: 9534bc2e7946013ce51a628f6333905cccef1393 # v0.1.0
+          ref: 7346e624c990ad9fa4ba0473c1a504a1e46aab57 # v0.2.0
           path: vendor/curlew-sqlite
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
