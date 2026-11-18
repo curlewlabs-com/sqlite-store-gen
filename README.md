@@ -54,7 +54,7 @@ What is left at run time is plain prepared statements over a pinned engine.
 The package is published as a release asset rather than to a registry:
 
 ```sh
-bun add https://github.com/curlewlabs-com/sqlite-store-gen/releases/download/v0.1.0/curlewlabs-com-sqlite-store-gen-0.1.0.tgz
+bun add https://github.com/curlewlabs-com/sqlite-store-gen/releases/download/v0.1.1/curlewlabs-com-sqlite-store-gen-0.1.1.tgz
 ```
 
 ### Generate
