@@ -107,6 +107,10 @@ describe("generated platform rendering", () => {
     expect(swift).toContain("func compareAndSetUpdateSyncCursor(");
     // The singleton slot-id brand names no value type: the slot is the constant 1.
     expect(`${kotlin}\n${swift}`).not.toContain("SyncCursorSlotId");
+    // The spec declares a compare-and-set update and no compare-and-set delete, so a
+    // delete surface here would be one the spec never asked for.
+    expect(kotlin).not.toContain("compareAndSetDeleteSyncCursor");
+    expect(swift).not.toContain("compareAndSetDeleteSyncCursor");
   });
 
   test("keeps the compare-and-set busy-lock mapping in the transaction wrapper", async () => {
@@ -243,6 +247,22 @@ describe("generated platform rendering", () => {
     }
     expect(kotlin).toContain("ReaderProfileCasResult");
     expect(swift).toContain("ReaderProfileCasResult");
+    // The write binds the caller's owner key, not the fixed singleton slot: a method that
+    // bound the slot would match no owner-keyed row and report every write missing.
+    for (const [source, keyword] of [
+      [kotlin, "fun"],
+      [swift, "func"],
+    ] as const) {
+      const start = source.indexOf(
+        `${keyword} compareAndSetBooksFinishedReaderProfile(`,
+      );
+      expect(start).toBeGreaterThanOrEqual(0);
+      const method = source.slice(
+        start,
+        source.indexOf(`\n    ${keyword} `, start + 1),
+      );
+      expect(method).toContain("readerId.value");
+    }
   });
 
   test.skipIf(SWIFTC === null)(

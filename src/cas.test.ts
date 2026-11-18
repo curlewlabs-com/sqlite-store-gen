@@ -399,6 +399,10 @@ describe("row ownership and compare-and-set spec", () => {
     );
     expect(sources.kotlin).toContain("fun setDisplayNameReaderProfile(");
     expect(sources.swift).toContain("func setDisplayNameReaderProfile(");
+    // The operations surface also carries the setter under its short name, taking the
+    // database and forwarding to the method above.
+    expect(sources.kotlin).toContain("fun setDisplayName(");
+    expect(sources.swift).toContain("func setDisplayName(");
   });
 
   test("rejects a non-compare-and-set update that declares no setColumns", async () => {

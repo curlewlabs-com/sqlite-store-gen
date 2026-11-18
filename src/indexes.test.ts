@@ -46,6 +46,43 @@ test("missing or misordered ladder indexes fail rather than silently accepting f
   }
 });
 
+// The same index built on the wrong table runs cleanly when that table has the same
+// columns, so only the comparison against the baseline can catch it: an upgraded
+// store would carry the index on a table no read uses it for, and scan the one it was
+// written for.
+test("a ladder index built on the wrong table fails even when that table has the same columns", async () => {
+  const raw = await loadExampleRaw();
+  const step = raw.migrations.find(
+    (migration) => migration.toVersion === INDEX_STEP,
+  )!;
+  const shadow = structuredClone(tableNamed(raw, "pending_highlight"));
+  shadow.name = "pending_highlight_shadow";
+  shadow.indexes = [];
+  shadow.operations = [];
+  raw.tables.push(shadow);
+  const create = step.statements.findIndex((sql) =>
+    sql.startsWith("CREATE TABLE IF NOT EXISTS pending_highlight ("),
+  );
+  step.statements.splice(
+    create + 1,
+    0,
+    step.statements[create]!.replace(
+      "CREATE TABLE IF NOT EXISTS pending_highlight (",
+      "CREATE TABLE IF NOT EXISTS pending_highlight_shadow (",
+    ),
+  );
+  const index = step.statements.findIndex((sql) =>
+    sql.startsWith("CREATE INDEX"),
+  );
+  step.statements[index] = step.statements[index]!.replace(
+    "ON pending_highlight (",
+    "ON pending_highlight_shadow (",
+  );
+  expect(() => normalizeLocalSQLiteSpec(raw)).toThrow(
+    "index shape differs from baseline",
+  );
+});
+
 test("an index cannot refer to a future column or hide a repeated introduction", async () => {
   const raw = await loadExampleRaw();
   const step = raw.migrations.find((migration) => migration.toVersion === 2)!;
