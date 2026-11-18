@@ -463,6 +463,68 @@ describe("operation spec validation", () => {
     );
   });
 
+  // The inserts bind the key first and the other columns after it in declared order, so
+  // a key declared later would put each value in its neighbour's column - silently,
+  // where the two share a type, as an integer key and an integer timestamp do.
+  test("rejects a table whose primary key is not its first column", async () => {
+    const invalid = await fresh();
+    const queue = tableNamed(invalid, "pending_highlight");
+    const captured = queue.columns.findIndex(
+      (column) => column.name === "captured_at_ms",
+    );
+    queue.columns.unshift(...queue.columns.splice(captured, 1));
+
+    expect(() => normalizeLocalSQLiteSpec(invalid)).toThrow(
+      "pending_highlight must declare its primary key staged_at_ms as its first column",
+    );
+  });
+
+  // An unbranded term takes no argument and binds the fixed singleton slot, so on any
+  // other column it becomes `<column> = 1`: a read of the wrong row, or an update or
+  // delete of whichever row holds that key.
+  test("rejects an unbranded predicate term anywhere but a singleton's slot", async () => {
+    for (const [table, operation] of [
+      ["reader_profile", "read_reader_profile"],
+      ["reader_profile", "delete_reader_profile"],
+      ["pending_highlight", "delete_pending_highlight"],
+    ] as const) {
+      const invalid = await fresh();
+      delete operationNamed(tableNamed(invalid, table), operation)
+        .predicate![0]!.brand;
+
+      expect(() => normalizeLocalSQLiteSpec(invalid)).toThrow(
+        `${operation} predicate term on`,
+      );
+    }
+  });
+
+  // A text default or guard value lands inside Kotlin and Swift string literals, where `$`
+  // is a Kotlin template, a backslash an escape, and three quotes the literal's end: each
+  // would emit source that does not compile, or compiles to a different value.
+  test("rejects a text default or guard value the generated literals cannot carry", async () => {
+    for (const value of ["$theme", "a\\b", 'x"""y', "tab\there"]) {
+      const withDefault = await fresh();
+      tableNamed(withDefault, "app_settings").columns.find(
+        (column) => column.name === "theme",
+      )!.default = value;
+      expect(() => normalizeLocalSQLiteSpec(withDefault)).toThrow(
+        "Column theme default",
+      );
+
+      const withGuard = await fresh();
+      tableNamed(withGuard, "app_settings").operations.push({
+        name: "claim_theme_app_settings",
+        kind: "update",
+        setColumns: ["theme"],
+        predicate: [{ column: "singleton_id", operator: "=" }],
+        guard: [{ column: "theme", value }],
+      });
+      expect(() => normalizeLocalSQLiteSpec(withGuard)).toThrow(
+        "claim_theme_app_settings guard on theme",
+      );
+    }
+  });
+
   test("rejects an obsolete-table entry that names any live table", async () => {
     // Dropping a live table would delete stored rows on every open; the reclamation list
     // is strictly for tables this build no longer owns. Every live table is refused, not

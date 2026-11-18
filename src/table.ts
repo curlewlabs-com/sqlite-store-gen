@@ -2,6 +2,7 @@
 // operations, keys, bootstrap state, and platform names its renderers consume.
 
 import { toCamelCase } from "./names";
+import { requireEmittableText } from "./sql";
 import type {
   LocalSQLiteOperationSpec,
   LocalSQLitePredicateTerm,
@@ -60,6 +61,9 @@ function normalizeColumn(column: LocalSQLiteColumnSpec): NormalizedColumn {
       throw new Error(
         `Column ${column.name} default must be a string for a TEXT column`,
       );
+    }
+    if (typeof column.default === "string") {
+      requireEmittableText(column.default, `Column ${column.name} default`);
     }
     if (column.sqliteType === "INTEGER" && typeof column.default !== "number") {
       throw new Error(
@@ -301,6 +305,16 @@ export function normalizeLocalSQLiteTable(
   if (slotColumnName === undefined || table.primaryKey.length !== 1) {
     throw new Error(
       `${table.name} must declare a single-column singleton primary key`,
+    );
+  }
+
+  // The generated inserts bind the key at parameter 1 and the remaining columns after it,
+  // while their column lists follow the declared order; the two agree only when the key is
+  // declared first. A key declared later would bind each value into its neighbour's
+  // column, silently where the two share a type, so that shape is refused.
+  if (table.columns[0]?.name !== slotColumnName) {
+    throw new Error(
+      `${table.name} must declare its primary key ${slotColumnName} as its first column`,
     );
   }
 

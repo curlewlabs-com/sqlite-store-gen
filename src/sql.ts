@@ -25,6 +25,23 @@ export function bootstrapSqlLiteral(column: NormalizedBootstrapColumn): string {
   return staticSqlLiteral(column.sqliteType, column.value);
 }
 
+// A TEXT default or guard value is written into generated Kotlin and Swift as part of a
+// SQL string literal. Kotlin reads `$` in those literals as a template, both languages read
+// a backslash as an escape (and Swift's `\(` as interpolation), three quotes end a
+// multi-line literal,
+// and a control character has no escape both languages share. Any of them would emit source
+// that fails to compile or, worse, a literal that compiles to a different value, so a
+// value carrying one is refused rather than encoded.
+const UNEMITTABLE_TEXT = /[$\\\u0000-\u001f\u007f]|"""/;
+
+export function requireEmittableText(value: string, where: string): void {
+  if (UNEMITTABLE_TEXT.test(value)) {
+    throw new Error(
+      `${where} ${JSON.stringify(value)} contains a character the generated Kotlin and Swift literals cannot carry: $, a backslash, a control character, or three quotes`,
+    );
+  }
+}
+
 // A migration statement emitted as a double-quoted string literal that is valid in
 // Kotlin and Swift. normalizeLocalSQLiteMigrations already forbids the
 // characters that

@@ -2,6 +2,7 @@
 // whose generated access path or optional fields would not mean what they say.
 
 import { toCamelCase } from "./names";
+import { requireEmittableText } from "./sql";
 
 import {
   validateOrderedSuccessor,
@@ -330,6 +331,12 @@ function validateGuard(
         `${operation.name} guards ${term.column} with a ${typeof term.value} but the column is ${column.sqliteType}; a mistyped literal compares unequal forever and the update silently never fires`,
       );
     }
+    if (typeof term.value === "string") {
+      requireEmittableText(
+        term.value,
+        `${operation.name} guard on ${term.column}`,
+      );
+    }
   }
 }
 
@@ -421,6 +428,7 @@ export function validateLocalSQLiteOperation(
       operation.name,
       operation.boundedScanException,
     );
+    validateUnbrandedTerms(table, operation, predicate);
     return;
   }
   if (
@@ -432,6 +440,28 @@ export function validateLocalSQLiteOperation(
   ) {
     throw new Error(
       `${operation.name} predicate is not covered by an emitted key or index; declare indexed access or a bounded scan exception`,
+    );
+  }
+  validateUnbrandedTerms(table, operation, predicate);
+}
+
+// An unbranded term takes no caller argument: the emitters bind the fixed SINGLETON_ID
+// slot in its place. That is right for exactly one term, a fixed singleton's slot
+// column. Anywhere else the term silently becomes `<column> = 1` - a read that finds the
+// wrong row or none, and an update or delete that writes whichever row has that key - so
+// it is refused here rather than emitted.
+function validateUnbrandedTerms(
+  table: LocalSQLiteOperationTableSpec,
+  operation: LocalSQLiteOperationSpec,
+  predicate: LocalSQLitePredicateTerm[],
+): void {
+  for (const term of predicate) {
+    if (term.brand !== undefined) continue;
+    if (table.keyedBy === undefined && term.column === table.primaryKey[0]) {
+      continue;
+    }
+    throw new Error(
+      `${operation.name} predicate term on ${term.column} declares no brand; only a fixed singleton's slot column may be bound unbranded`,
     );
   }
 }
