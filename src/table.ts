@@ -465,12 +465,11 @@ export function normalizeLocalSQLiteTable(
     }
   }
 
-  // Only an insert (returns the new version) or a compare-and-set (reads the
-  // observed version) reads the version back; a table whose only writes are an
-  // ensure + set-based delete never does, so its version reader would be unused.
+  // Only a compare-and-set (reads the observed version) reads the version back; an
+  // insert returns the version its own statement wrote. A table without one would
+  // leave its version reader unused.
   const emitsVersionReader = operations.some(
-    (operation) =>
-      operation.category === "insert" || operation.category === "casUpdate",
+    (operation) => operation.category === "casUpdate",
   );
 
   const casResultType = hasCas ? `${typePrefix}CasResult` : undefined;

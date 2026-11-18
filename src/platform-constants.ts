@@ -148,7 +148,7 @@ ${selectColumns}
 ${readTail(operation, "            ")}
             """`);
       // The version-reader SQL is used only by the private version reader, which is
-      // emitted only when an insert or compare-and-set reads the version back.
+      // emitted only when a compare-and-set reads the version back.
       if (table.emitsVersionReader) {
         consts.push(`        private val ${table.kotlinReadVersionConst} = """
             SELECT ${VERSION_COLUMN}
@@ -250,6 +250,11 @@ ${columnListLines(
                 ? `
             ON CONFLICT(${table.slotColumnName}) DO UPDATE SET
 ${doUpdate}`
+                : ""
+            }${
+              operation.category === "insert"
+                ? `
+            RETURNING ${VERSION_COLUMN}`
                 : ""
             }
             """`;
@@ -392,7 +397,7 @@ ${selectColumns}
 ${readTail(operation, "        ")}
         """`);
       // The version-reader SQL is used only by the private version reader, which is
-      // emitted only when an insert or compare-and-set reads the version back.
+      // emitted only when a compare-and-set reads the version back.
       if (table.emitsVersionReader) {
         consts.push(`    private static let ${table.swiftReadVersionConst} = """
         SELECT ${VERSION_COLUMN}
@@ -495,6 +500,11 @@ ${columnListLines(
             ? `
         ON CONFLICT(${table.slotColumnName}) DO UPDATE SET
 ${doUpdate}`
+            : ""
+        }${
+          operation.category === "insert"
+            ? `
+        RETURNING ${VERSION_COLUMN}`
             : ""
         }
         """`;

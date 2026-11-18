@@ -235,6 +235,7 @@ function kotlinDatabaseClass(spec: LocalSQLiteSpec): string {
     }`);
   for (const table of spec.tables) members.push(kotlinRowReader(table));
   members.push(KOTLIN_INSTANCE_HELPERS);
+  if (anyPlainInsert(spec)) members.push(KOTLIN_STEP_WRITE_RETURNING);
   members.push(kotlinCompanion(spec));
 
   return `class GeneratedLocalSQLiteDatabase private constructor(
@@ -500,6 +501,7 @@ function swiftDatabaseClass(spec: LocalSQLiteSpec): string {
     if (table.emitsVersionReader) members.push(swiftVersionReader(table));
   }
   members.push(SWIFT_INSTANCE_HELPERS);
+  if (anyPlainInsert(spec)) members.push(SWIFT_STEP_WRITE_RETURNING);
   members.push(SWIFT_BUSY_CLASSIFIER);
   members.push(SWIFT_CONFIGURE_BLOCK);
   members.push(swiftGeneratedConstants(spec, SQLITE_BUSY_TIMEOUT_MILLIS));
@@ -677,6 +679,60 @@ ${SWIFT_BINDERS}
             lostBudget: lostBudget
         ))
     }`;
+
+// A write whose statement returns one integer, as an upsert's RETURNING does. SQLite makes
+// the change at the first step and commits when the statement finishes, so the span runs
+// from the first step through the last, and contention at either one is a lost budget.
+// The value is null when the statement returned no row.
+const KOTLIN_STEP_WRITE_RETURNING = `    private fun stepWriteReturningLong(
+        statement: Long,
+        operation: String,
+    ): Long? {
+        assertNotMainThread(operation)
+        val start = writeSpanStart()
+        var result = CurlewSQLite.nativeStep(statement)
+        var value: Long? = null
+        if (result == CurlewSQLite.ROW) {
+            value = CurlewSQLite.nativeColumnInt64(statement, 0)
+            result = CurlewSQLite.nativeStep(statement)
+        }
+        if (result != CurlewSQLite.DONE) {
+            val error = sqliteError(operation, result)
+            if (isSQLiteBusy(error)) recordWriteSpan(start, lostBudget = true)
+            throw error
+        }
+        recordWriteSpan(start, lostBudget = false)
+        return value
+    }`;
+
+const SWIFT_STEP_WRITE_RETURNING = `    private func stepWriteReturningInt64(
+        statement: OpaquePointer,
+        operation: String
+    ) throws -> Int64? {
+        try assertNotMainThread(operation: operation)
+        let start = writeSpanStart()
+        var result = curlew_sqlite3_step(statement)
+        var value: Int64?
+        if result == SQLITE_ROW {
+            value = curlew_sqlite3_column_int64(statement, 0)
+            result = curlew_sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else {
+            let error = sqliteError(operation: operation, resultCode: result, database: raw)
+            if Self.isSQLiteBusy(error) {
+                recordWriteSpan(start, lostBudget: true)
+            }
+            throw error
+        }
+        recordWriteSpan(start, lostBudget: false)
+        return value
+    }`;
+
+function anyPlainInsert(spec: LocalSQLiteSpec): boolean {
+  return spec.tables.some((table) =>
+    table.operations.some((operation) => operation.category === "insert"),
+  );
+}
 
 const SWIFT_SQLITE_ERROR_FUNC = `private func sqliteError(
     operation: String,

@@ -315,18 +315,20 @@ function kotlinInsertMethod(
       kotlinColumnBind(column, column.fieldName, index + 2, 12),
     ),
   ].join("\n");
-  const versionArg =
-    table.keyedSlot === undefined ? "" : table.keyedSlot.fieldName;
   return `${kotlinBlockSignature(operation.dbMethod, insertParams, table.versionColumn.brand)}
         assertNotMainThread("${operation.spec.name}")
-        withStatement(${operation.kotlinSqlConst}, "${operation.spec.name}") { statement ->
+        return withStatement(${operation.kotlinSqlConst}, "${operation.spec.name}") { statement ->
 ${bindLines}
-            stepDone(statement, "${operation.spec.name}", isWrite = true)
+            // The version comes back from the write itself, so no other writer's version
+            // can land between the upsert and the value returned.
+            val rowVersion =
+                stepWriteReturningLong(statement, "${operation.spec.name}")
+                    ?: error("Generated ${operation.spec.name} did not leave a row")
             check(readChanges() == 1L) {
                 "Generated ${operation.spec.name} changed an unexpected row count"
             }
+            ${table.versionColumn.brand}(rowVersion)
         }
-        return ${table.versionReader}(${versionArg}) ?: error("Generated ${operation.spec.name} did not leave a row")
     }`;
 }
 
