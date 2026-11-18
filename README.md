@@ -265,9 +265,6 @@ built; the others are worth knowing before you write such a spec.
   is accepted, and an upgraded store enforces the step's. Compare each step's
   CHECKs with the baseline the generator emits; this repository's
   `src/migrations.test.ts` shows one way.
-- **A baseline open of an untracked store that already holds an index fails** on
-  the plain `CREATE INDEX`. A store reaches version 0 with indexes only if
-  something other than this generator built it.
 - **Names are not checked for collisions or keywords after they are derived.**
   Two operations whose names derive to the same method (`set_name_x` and
   `set_name` on table `x`), channel methods that differ only in case,
