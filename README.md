@@ -255,8 +255,8 @@ built; the others are worth knowing before you write such a spec.
 
 - **An index is coverage, not uniqueness.** An equality `read`, `update` or
   `delete` on every column of a plain (non-unique) index is admitted, but the
-  emitted code expects one row. A `read` takes the first match; an `update` or
-  `delete` that matches several rows writes them all and then throws. Key
+  emitted code expects one row. A `read` that matches several rows throws; an
+  `update` or `delete` that matches several writes them all and then throws. Key
   single-row operations on the primary key.
 - **An `insert` reads the version it returns after its write commits.** Another
   process writing the same row in between makes the returned version that
