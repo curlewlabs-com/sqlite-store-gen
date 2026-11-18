@@ -40,6 +40,8 @@ statements, the SQL is fixed at generation time, and the generator refuses a
 spec whose operations would misbehave. Some examples of what it refuses:
 
 - a predicate no key or index covers, which would scan the table;
+- a single-row read, update or delete keyed on a non-unique index, which could
+  match several rows;
 - a compare-and-set whose version check it did not write itself;
 - a ladder step that leaves an upgraded store in a different shape from a fresh
   install;
@@ -253,20 +255,15 @@ Each of these needs a spec that does something the example does not. The ones
 marked "fails to compile" fail loudly the first time the generated file is
 built; the others are worth knowing before you write such a spec.
 
-- **An index is coverage, not uniqueness.** An equality `read`, `update` or
-  `delete` on every column of a plain (non-unique) index is admitted, but the
-  emitted code expects one row. A `read` that matches several rows throws; an
-  `update` or `delete` that matches several writes them all and then throws. Key
-  single-row operations on the primary key.
 - **An `insert` reads the version it returns after its write commits.** Another
   process writing the same row in between makes the returned version that
   writer's. The row itself is written correctly. Use `casUpdate` where the
   version matters.
-- **The ladder is checked by table and index, not by column.** A migration
-  `CREATE TABLE` that leaves out or retypes a column the spec declares is
-  accepted, and an upgraded store then lacks it. Compare each step's DDL with
-  the baseline the generator emits; this repository's `src/migrations.test.ts`
-  shows one way.
+- **The ladder check compares columns by name, type, nullability and key, not by
+  CHECK or DEFAULT.** A migration `CREATE TABLE` whose column carries a
+  different CHECK than the spec declares is accepted, and an upgraded store
+  enforces the step's. Compare each step's CHECKs with the baseline the
+  generator emits; this repository's `src/migrations.test.ts` shows one way.
 - **A baseline open of an untracked store that already holds an index fails** on
   the plain `CREATE INDEX`. A store reaches version 0 with indexes only if
   something other than this generator built it.

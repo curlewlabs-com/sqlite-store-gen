@@ -187,3 +187,34 @@ test("ordinary owner-only operations cannot borrow counted cleanup prefix covera
     );
   }
 });
+
+// An index admits a statement as keyed access, but a plain index says nothing about how
+// many rows match. Every operation but the counted cleanup expects at most one, so one
+// keyed on a non-unique index would throw on a second matching row - after an update or
+// delete had already written every match.
+test("single-row operations cannot be keyed on a non-unique index", async () => {
+  for (const kind of ["read", "update", "delete"] as const) {
+    const raw = await loadExampleRaw();
+    const table = tableNamed(raw, "pending_highlight");
+    table.operations.push({
+      name: `${kind}_by_capture_pending_highlight`,
+      kind,
+      predicate: [
+        {
+          column: "reader_id",
+          operator: "=",
+          brand: "PendingHighlightReaderId",
+        },
+        {
+          column: "captured_at_ms",
+          operator: "=",
+          brand: "PendingHighlightCapturedAtMs",
+        },
+      ],
+      ...(kind === "update" ? { setColumns: ["upload_attempts"] } : {}),
+    });
+    expect(() => normalizeLocalSQLiteSpec(raw)).toThrow(
+      `${kind}_by_capture_pending_highlight is keyed on a non-unique index`,
+    );
+  }
+});

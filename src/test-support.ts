@@ -156,6 +156,21 @@ export function withSchemaMigrations(
         !(operation.predicate ?? []).some((term) => term.operator !== "="),
     );
   }
+  // The ladder has to end at the baseline's columns, so the profile declares what the
+  // two steps add.
+  const profile = tableNamed(spec, "reader_profile");
+  for (const [name, brand] of [
+    ["reading_goal", "ReaderProfileReadingGoal"],
+    ["streak_days", "ReaderProfileStreakDays"],
+  ] as const) {
+    profile.columns.splice(profile.columns.length - 1, 0, {
+      name,
+      sqliteType: "INTEGER",
+      nullable: false,
+      brand,
+      default: 0,
+    });
+  }
   spec.schemaVersion = 3;
   spec.migrations = [
     {

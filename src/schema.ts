@@ -422,6 +422,7 @@ function replayMigrationLadder(
     }
     if (steps.length > 0) {
       verifyTableParity(database, tables);
+      verifyColumnParity(database, tables);
       verifyIndexParity(database, tables);
     }
   } finally {
@@ -452,6 +453,55 @@ function verifyTableParity(
       );
     }
   }
+}
+
+// Each table the ladder ends with has to hold the baseline's columns, not only its name.
+// A step that creates a table, or recreates one, can leave out a declared column or give
+// it another type, nullability or key, and every check above passes it, since none of
+// the steps that follow names that column. An upgraded store would then lack the column
+// a fresh install has, and the first generated statement naming it would fail on that
+// device alone.
+//
+// The baseline side is SQLite's own reading of the baseline DDL, built in a database of
+// its own, so the two sides are compared in the terms the engine stores. Columns are
+// matched by name, since an added column lands last whatever its declared position, and
+// every generated statement names its columns. A CHECK or a DEFAULT is not compared:
+// SQLite reports neither in a form that is compared here.
+function verifyColumnParity(
+  database: Database,
+  tables: LocalSQLiteSchemaTableSpec[],
+): void {
+  const baseline = new Database(":memory:");
+  try {
+    for (const table of tables) {
+      baseline.run(createTableStatement(table));
+      const expected = columnShapes(baseline, table.name);
+      const actual = columnShapes(database, table.name);
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        throw new Error(
+          `the ladder leaves table ${table.name} with columns ${JSON.stringify(actual)}; ` +
+            `the baseline creates ${JSON.stringify(expected)}`,
+        );
+      }
+    }
+  } finally {
+    baseline.close();
+  }
+}
+
+interface ColumnShape {
+  name: string;
+  type: string;
+  notnull: number;
+  pk: number;
+}
+
+function columnShapes(database: Database, table: string): ColumnShape[] {
+  return database
+    .query<ColumnShape, [string]>(
+      'SELECT name, type, "notnull", pk FROM pragma_table_info(?) ORDER BY name',
+    )
+    .all(table);
 }
 
 // `sqlite_schema` rather than a PRAGMA because the table name is a bound value here,
