@@ -23,8 +23,8 @@ test("emitted successor reads return the next key across gaps and stop at the ta
   )!;
   const db = new Database(":memory:");
   try {
-    db.exec(createTableStatement(table.spec));
-    db.exec(`INSERT INTO pending_highlight (staged_at_ms, reader_id, book_isbn, excerpt,
+    db.run(createTableStatement(table.spec));
+    db.run(`INSERT INTO pending_highlight (staged_at_ms, reader_id, book_isbn, excerpt,
       captured_at_ms, upload_attempts, retry_not_before_ms, row_version) VALUES
       (10, 'r', 'isbn', 'a', 10, 0, 0, 1),
       (30, 'r', 'isbn', 'b', 30, 0, 999999, 1),
@@ -56,14 +56,14 @@ test("emitted maximum update never shortens a deadline or overwrites sibling sta
   const kotlin = render(spec).kotlin;
   const db = new Database(":memory:");
   try {
-    db.exec(createTableStatement(table.spec));
+    db.run(createTableStatement(table.spec));
     db.query(
       sqlConstBody(
         kotlin,
         table.operations.find((op) => op.category === "ensure")!.kotlinSqlConst,
       ),
     ).run("reader");
-    db.exec(
+    db.run(
       "UPDATE reader_profile SET books_finished = 3 WHERE reader_id = 'reader'",
     );
     const update = db.query(

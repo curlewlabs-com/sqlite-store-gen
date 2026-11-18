@@ -19,7 +19,7 @@ export function validateOrderedSuccessor(
     operation.predicate?.length !== 1 ||
     term?.column !== column ||
     term?.operator !== ">" ||
-    term?.brand !== key.brand ||
+    term.brand !== key.brand ||
     operation.orderedHead !== undefined ||
     operation.boundedScanException !== undefined
   ) {
@@ -33,7 +33,9 @@ export function validateIntegerMaximum(
   table: LocalSQLiteOperationTableSpec,
   operation: LocalSQLiteOperationSpec,
 ): void {
-  if (operation.integerMaximum === undefined) return;
+  // Read as unknown: the spec is JSON, so the declared `true` constrains nothing here.
+  const integerMaximum: unknown = operation.integerMaximum;
+  if (integerMaximum === undefined) return;
   const [columnName] = operation.setColumns ?? [];
   const column = table.columns.find(
     (candidate) => candidate.name === columnName,
@@ -43,7 +45,7 @@ export function validateIntegerMaximum(
     (candidate) => candidate.name === table.primaryKey[0],
   );
   if (
-    operation.integerMaximum !== true ||
+    integerMaximum !== true ||
     operation.setColumns?.length !== 1 ||
     column?.sqliteType !== "INTEGER" ||
     column.nullable ||
@@ -51,7 +53,7 @@ export function validateIntegerMaximum(
     operation.predicate?.length !== 1 ||
     term?.column !== key?.name ||
     term?.operator !== "=" ||
-    (table.keyedBy !== undefined && term?.brand !== key?.brand) ||
+    (table.keyedBy !== undefined && term.brand !== key?.brand) ||
     operation.guard !== undefined ||
     operation.boundedScanException !== undefined
   ) {

@@ -293,7 +293,7 @@ enum LocalSQLiteIntegrityProbe {
             guard step == SQLITE_ROW else { throw LocalSQLiteProbeFailure(resultCode: step) }
             // A clean run is the single literal row "ok"; anything else - including a NULL
             // this never expects - counts as a fault.
-            let text = curlew_sqlite3_column_text(statement, 0).map { String(cString: \$0) }
+            let text = curlew_sqlite3_column_text(statement, 0).map { String(cString: $0) }
             if text?.lowercased() != integrityCheckOK { faults += 1 }
         }
         return faults

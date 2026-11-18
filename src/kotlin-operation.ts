@@ -38,13 +38,17 @@ function kotlinColumnSetMethod(
   operation: NormalizedOperation,
 ): string {
   const predicate = operation.effectivePredicate;
-  const keyColumns = predicate
-    .filter((term) => term.brand !== undefined)
-    .map((term) => ({
-      ...columnByName(table, term.column),
-      fieldName: toCamelCase(term.parameter ?? term.column),
-      brand: term.brand!,
-    }));
+  const keyColumns = predicate.flatMap((term) =>
+    term.brand === undefined
+      ? []
+      : [
+          {
+            ...columnByName(table, term.column),
+            fieldName: toCamelCase(term.parameter ?? term.column),
+            brand: term.brand,
+          },
+        ],
+  );
   const signature = kotlinBlockSignature(
     operation.dbMethod,
     [...operation.setColumns, ...keyColumns],

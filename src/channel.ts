@@ -134,12 +134,23 @@ const CHANNEL_SUBJECT_NAME_PATTERN = /^[a-z][A-Za-z0-9]*$/;
 const CHANNEL_ARG_NAME_PATTERN = /^[a-z][A-Za-z0-9]*$/;
 const CHANNEL_WIRE_ROOT = "localSQLite.";
 
+// A spec is parsed JSON, so a name its interface types as a string can be absent. An
+// absent one is tested as "", since RegExp#test reads undefined as "undefined", which
+// every name pattern accepts.
+function matchesNamePattern(
+  pattern: RegExp,
+  name: string | undefined,
+): boolean {
+  return pattern.test(name ?? "");
+}
+
 function screamingSnakeFromCamel(camel: string): string {
   return camel.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toUpperCase();
 }
 
+// `raw` is the spec's channel as parsed, which a spec missing the field leaves undefined.
 export function normalizeLocalSQLiteChannel(
-  raw: LocalSQLiteChannelSpec,
+  raw: LocalSQLiteChannelSpec | undefined,
 ): NormalizedChannel {
   if (typeof raw?.name !== "string" || raw.name.length === 0) {
     throw new Error("channel.name must be the method-channel name");
@@ -151,7 +162,7 @@ export function normalizeLocalSQLiteChannel(
   const seenWire = new Set<string>();
   const seenSubject = new Set<string>();
   const subjects = raw.subjects.map((subject) => {
-    if (!CHANNEL_SUBJECT_NAME_PATTERN.test(subject.name ?? "")) {
+    if (!matchesNamePattern(CHANNEL_SUBJECT_NAME_PATTERN, subject.name)) {
       throw new Error(
         `channel subject name "${subject.name}" must be lowerCamelCase`,
       );
@@ -177,7 +188,7 @@ export function normalizeLocalSQLiteChannel(
 
     const seenMethod = new Set<string>();
     const methods = subject.methods.map((method) => {
-      if (!CHANNEL_METHOD_NAME_PATTERN.test(method.name ?? "")) {
+      if (!matchesNamePattern(CHANNEL_METHOD_NAME_PATTERN, method.name)) {
         throw new Error(
           `channel method name "${method.name}" on ${subject.name} must be lowerCamelCase`,
         );
@@ -201,7 +212,7 @@ export function normalizeLocalSQLiteChannel(
       const args = method.args ?? [];
       const seenArg = new Set<string>();
       for (const arg of args) {
-        if (!CHANNEL_ARG_NAME_PATTERN.test(arg.name ?? "")) {
+        if (!matchesNamePattern(CHANNEL_ARG_NAME_PATTERN, arg.name)) {
           throw new Error(
             `channel argument "${arg.name}" on ${wire} must be lowerCamelCase`,
           );
@@ -210,9 +221,11 @@ export function normalizeLocalSQLiteChannel(
           throw new Error(`Duplicate argument ${arg.name} on ${wire}`);
         }
         seenArg.add(arg.name);
-        if (arg.type !== "string" && arg.type !== "bool") {
+        // Read as unknown: the spec is JSON, so the declared union constrains nothing here.
+        const argType: unknown = arg.type;
+        if (argType !== "string" && argType !== "bool") {
           throw new Error(
-            `channel argument ${arg.name} on ${wire} has unsupported type "${arg.type}"`,
+            `channel argument ${arg.name} on ${wire} has unsupported type "${String(argType)}"`,
           );
         }
       }

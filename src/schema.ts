@@ -381,6 +381,7 @@ function replayMigrationLadder(
           `cannot rebuild the shape ${table.name} had before the ladder ` +
             `(${error instanceof Error ? error.message : String(error)}); the ladder ` +
             `adds to a table it never creates, so nothing is left to add to`,
+          { cause: error },
         );
       }
     }
@@ -416,6 +417,7 @@ function replayMigrationLadder(
               `store at version ${step.toVersion - 1} has ` +
               `(${error instanceof Error ? error.message : String(error)}): ` +
               statement,
+            { cause: error },
           );
         }
       }

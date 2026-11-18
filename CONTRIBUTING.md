@@ -15,6 +15,10 @@ bun run typecheck
 bun run test
 ```
 
+eslint runs in CI through ci-baseline. To run the same check locally, after
+installing dependencies: `<a ci-baseline checkout>/lib/lint-local.sh`. It runs
+the ci-baseline commit this repository's workflows pin.
+
 A change to what the generator emits should also pass the native checks the
 README's Development section describes, which CI runs on every pull request.
 

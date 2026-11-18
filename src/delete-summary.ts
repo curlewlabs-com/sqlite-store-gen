@@ -32,8 +32,8 @@ export function validateDeleteSummary(
     predicate.length !== 1 ||
     owner === undefined ||
     predicate[0]?.operator !== "=" ||
-    predicate[0]?.brand !== owner?.brand ||
-    owner?.sqliteType !== "TEXT" ||
+    predicate[0].brand !== owner.brand ||
+    owner.sqliteType !== "TEXT" ||
     owner.nullable ||
     timestamp?.sqliteType !== "INTEGER" ||
     timestamp.nullable
@@ -47,17 +47,27 @@ export function validateDeleteSummary(
 export function deleteSummarySql(
   table: NormalizedTable,
   operation: NormalizedOperation,
+  summary: NonNullable<LocalSQLiteOperationSpec["deleteSummary"]>,
 ): string {
-  return `SELECT COUNT(*), MIN(${operation.spec.deleteSummary!.observedAtColumn}) FROM ${table.spec.name} WHERE ${deleteSummaryOwner(table, operation).name} = ?`;
+  return `SELECT COUNT(*), MIN(${summary.observedAtColumn}) FROM ${table.spec.name} WHERE ${deleteSummaryOwner(table, operation).name} = ?`;
 }
 
-// The column validateDeleteSummary admitted as the owner.
+// The column validateDeleteSummary admitted as the owner. Normalization refuses a
+// deleteSummary without one, so only a spec it did not produce reaches the throw.
 function deleteSummaryOwner(
   table: NormalizedTable,
   operation: NormalizedOperation,
 ): NormalizedColumn {
-  const ownerColumnName = operation.spec.predicate![0]!.column;
-  return table.allColumns.find((column) => column.name === ownerColumnName)!;
+  const ownerColumnName = operation.spec.predicate?.[0]?.column;
+  const owner = table.allColumns.find(
+    (column) => column.name === ownerColumnName,
+  );
+  if (owner === undefined) {
+    throw new Error(
+      `${operation.spec.name} deleteSummary has no owner column; normalize the spec before rendering it`,
+    );
+  }
+  return owner;
 }
 
 export function kotlinDeleteSummary(

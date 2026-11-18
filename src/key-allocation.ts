@@ -2,7 +2,11 @@
 // plain integer primary key, so rows already stored keep theirs; a consumer that settles
 // a row by key should also check its payload, because an emptied table can reuse a key
 // after the caller's clock moves backward.
-import type { NormalizedOperation, NormalizedTable } from "./model";
+import type {
+  NormalizedColumn,
+  NormalizedOperation,
+  NormalizedTable,
+} from "./model";
 
 export function validateKeyAllocation(tables: NormalizedTable[]): void {
   for (const table of tables) {
@@ -38,6 +42,17 @@ export function validateKeyAllocation(tables: NormalizedTable[]): void {
   }
 }
 
+// The key an allocating insert fills. validateKeyAllocation refuses allocateKey on a
+// table with no keyed slot, so only a spec normalization did not produce reaches the throw.
+export function allocatedKeyColumn(table: NormalizedTable): NormalizedColumn {
+  if (table.keyedSlot === undefined) {
+    throw new Error(
+      `${table.spec.name} allocates a key but has no keyed slot; normalize the spec before rendering it`,
+    );
+  }
+  return table.keyedSlot;
+}
+
 export function allocatedKeySql(table: NormalizedTable): string {
   const key = table.slotColumnName;
   // The reverse PK seek costs the same on a backlog as on an empty queue. The
@@ -52,7 +67,7 @@ export function swiftKeyAllocation(
   op: NormalizedOperation,
 ): string {
   if (op.spec.allocateKey === undefined) return "";
-  const key = table.keyedSlot!;
+  const key = allocatedKeyColumn(table);
   const target = op.coWrite?.setColumns.find(
     (column) => column.name === op.spec.allocateKey?.alsoSetColumn,
   );
@@ -81,7 +96,7 @@ export function kotlinKeyAllocation(
   op: NormalizedOperation,
 ): string {
   if (op.spec.allocateKey === undefined) return "";
-  const key = table.keyedSlot!;
+  const key = allocatedKeyColumn(table);
   const target = op.coWrite?.setColumns.find(
     (column) => column.name === op.spec.allocateKey?.alsoSetColumn,
   );

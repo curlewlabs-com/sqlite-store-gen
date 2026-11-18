@@ -18,7 +18,7 @@ test("allocation keeps same-millisecond observations and clock rollback behind t
   )!;
   const db = new Database(":memory:");
   try {
-    db.exec(
+    db.run(
       "CREATE TABLE pending_highlight (staged_at_ms INTEGER PRIMARY KEY) STRICT",
     );
     const allocate = db.query<{ key: number }, [number]>(
