@@ -219,14 +219,15 @@ describe("generated platform rendering", () => {
     );
   });
 
-  // The settings row's writes are column sets and a reset - none reads the version back
-  // - so its private version reader is not emitted, leaving no unused private function.
+  // Only a compare-and-set reads the version back. The settings row's writes are column
+  // sets and a reset, and the signed-in reader's insert returns the version its own
+  // statement wrote, so neither emits a version reader that nothing would call.
   test("emits a version reader only for a table whose writes read the version back", async () => {
     const { kotlin, swift } = render(await loadExample());
 
     for (const output of [kotlin, swift]) {
-      expect(output).toContain("readStoredReaderVersion");
       expect(output).toContain("readStoredProfileVersion");
+      expect(output).not.toContain("readStoredReaderVersion");
       expect(output).not.toContain("readStoredSettingsVersion");
     }
   });
@@ -312,16 +313,22 @@ describe("generated platform rendering", () => {
       // A table that reads its version back with no read of its own, and one with two
       // reads: the version-reader constant is declared once in each.
       const noRead = cloneSpec(await loadExampleRaw());
-      const reader = tableNamed(noRead, "signed_in_reader");
+      const reader = tableNamed(noRead, "reader_profile");
       reader.operations = reader.operations.filter(
         (operation) => operation.kind !== "read",
       );
       typecheck(swiftOf(noRead));
       const twoReads = cloneSpec(await loadExampleRaw());
-      tableNamed(twoReads, "signed_in_reader").operations.push({
-        name: "read_again_signed_in_reader",
+      tableNamed(twoReads, "reader_profile").operations.push({
+        name: "read_again_reader_profile",
         kind: "read",
-        predicate: [{ column: "singleton_id", operator: "=" }],
+        predicate: [
+          {
+            column: "reader_id",
+            operator: "=",
+            brand: "ReaderProfileReaderId",
+          },
+        ],
       });
       typecheck(swiftOf(twoReads));
     },

@@ -264,21 +264,23 @@ describe("derived identifier checks", () => {
   // now anchored to one operation. The Swift type-check suite compiles them.
   test("declares the version-reader constant once whatever a table's reads", async () => {
     const noRead = await fresh();
-    const reader = tableNamed(noRead, "signed_in_reader");
+    const reader = tableNamed(noRead, "reader_profile");
     reader.operations = reader.operations.filter(
       (operation) => operation.kind !== "read",
     );
     const twoReads = await fresh();
-    tableNamed(twoReads, "signed_in_reader").operations.push({
-      name: "read_again_signed_in_reader",
+    tableNamed(twoReads, "reader_profile").operations.push({
+      name: "read_again_reader_profile",
       kind: "read",
-      predicate: [{ column: "singleton_id", operator: "=" }],
+      predicate: [
+        { column: "reader_id", operator: "=", brand: "ReaderProfileReaderId" },
+      ],
     });
 
     for (const spec of [noRead, twoReads]) {
       const { kotlin, swift } = renderRaw(spec);
-      expect(occurrences(kotlin, 'READ_READER_VERSION_SQL = """')).toBe(1);
-      expect(occurrences(swift, 'readReaderVersionSQL = """')).toBe(1);
+      expect(occurrences(kotlin, 'READ_PROFILE_VERSION_SQL = """')).toBe(1);
+      expect(occurrences(swift, 'readProfileVersionSQL = """')).toBe(1);
     }
   });
 });

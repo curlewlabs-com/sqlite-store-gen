@@ -508,13 +508,6 @@ function swiftInsertMethod(
         `        try ${swiftBinder(column)}(${brandedBindValue(column, column.fieldName)}, at: ${index + 2}, statement: statement)`,
     ),
   ].join("\n");
-  // Swift call sites need the argument label; the keyed version reader takes the key
-  // column's own label, so pass `key: key` under that name (a singleton reader takes
-  // none). Kotlin is positional and passes the bare field name.
-  const versionArg =
-    table.keyedSlot === undefined
-      ? ""
-      : `${table.keyedSlot.fieldName}: ${table.keyedSlot.fieldName}`;
   return `    func ${operation.dbMethod}(
 ${params}
     ) throws -> ${table.versionColumn.brand} {
@@ -523,22 +516,23 @@ ${prepare}
         defer { curlew_sqlite3_finalize(statement) }
 
 ${bindLines}
-        try stepDone(
-            statement: statement, operation: "execute ${operation.spec.name}", isWrite: true
-        )
+        // The version comes back from the write itself, so no other writer's version can
+        // land between the upsert and the value returned.
+        guard let rowVersion = try stepWriteReturningInt64(
+            statement: statement, operation: "execute ${operation.spec.name}"
+        ) else {
+            throw LocalSQLiteGeneratedError.unexpectedResult(
+                operation: "execute ${operation.spec.name}",
+                detail: "operation did not leave a row"
+            )
+        }
         guard curlew_sqlite3_changes(raw) == 1 else {
             throw LocalSQLiteGeneratedError.unexpectedResult(
                 operation: "execute ${operation.spec.name}",
                 detail: "operation changed an unexpected row count"
             )
         }
-        guard let rowVersion = try ${table.versionReader}(${versionArg}) else {
-            throw LocalSQLiteGeneratedError.unexpectedResult(
-                operation: "execute ${operation.spec.name}",
-                detail: "operation did not leave a row"
-            )
-        }
-        return rowVersion
+        return ${table.versionColumn.brand}(value: rowVersion)
     }`;
 }
 

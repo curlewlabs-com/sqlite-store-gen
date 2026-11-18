@@ -99,8 +99,7 @@ ${steps}
 }
 
 // The operation the version-reader SQL is emitted after, or undefined when the table has
-// no version reader to use it (only an insert or a compare-and-set reads the version
-// back). Exactly one anchor per table, so the constant is declared once whatever the
+// no version reader to use it (only a compare-and-set reads the version back). Exactly one anchor per table, so the constant is declared once whatever the
 // table's reads: after its first read, or after its last operation when it has none.
 function versionReaderAnchor(
   table: NormalizedTable,
@@ -262,6 +261,11 @@ ${columnListLines(
                 ? `
             ON CONFLICT(${table.slotColumnName}) DO UPDATE SET
 ${doUpdate}`
+                : ""
+            }${
+              operation.category === "insert"
+                ? `
+            RETURNING ${VERSION_COLUMN}`
                 : ""
             }
             """`;
@@ -505,6 +509,11 @@ ${columnListLines(
             ? `
         ON CONFLICT(${table.slotColumnName}) DO UPDATE SET
 ${doUpdate}`
+            : ""
+        }${
+          operation.category === "insert"
+            ? `
+        RETURNING ${VERSION_COLUMN}`
             : ""
         }
         """`;

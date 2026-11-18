@@ -116,6 +116,12 @@ const sources = renderLocalSQLiteSources(
 curlew-sqlite's README has both recipes. Each open checks the engine's version
 floor and exact source ID, and refuses an engine that is not the pinned one.
 
+The generated code needs SQLite 3.35.0 or later, for the `RETURNING` clause an
+`insert` returns its version with. The generator holds no engine floor of its
+own: the binding's floor is the one an open enforces, and curlew-sqlite's is
+well above it. An app that binds the generated code to another engine owes the
+same floor.
+
 ### Open the store and call it
 
 ```kotlin
@@ -255,19 +261,12 @@ Each of these needs a spec that does something the example does not. The ones
 marked "fails to compile" fail loudly the first time the generated file is
 built; the others are worth knowing before you write such a spec.
 
-- **An `insert` reads the version it returns after its write commits.** Another
-  process writing the same row in between makes the returned version that
-  writer's. The row itself is written correctly. Use `casUpdate` where the
-  version matters.
 - **The ladder check compares a table's STRICT flag and its columns by name,
   type, nullability and key, not by CHECK or DEFAULT.** A migration
   `CREATE TABLE` whose column carries a different CHECK than the spec declares
   is accepted, and an upgraded store enforces the step's. Compare each step's
   CHECKs with the baseline the generator emits; this repository's
   `src/migrations.test.ts` shows one way.
-- **A baseline open of an untracked store that already holds an index fails** on
-  the plain `CREATE INDEX`. A store reaches version 0 with indexes only if
-  something other than this generator built it.
 - **A derived name is not checked against the names the generator declares
   itself.** Normalization refuses two spec entries that derive one method,
   field, constant, type or channel case, and a name that is a Kotlin or Swift
