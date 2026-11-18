@@ -59,6 +59,8 @@ test("a ladder index built on the wrong table fails even when that table has the
   shadow.name = "pending_highlight_shadow";
   shadow.indexes = [];
   shadow.operations = [];
+  // Its own brands, since each brand is declared once across the generated types.
+  for (const column of shadow.columns) column.brand = `Shadow${column.brand}`;
   raw.tables.push(shadow);
   const create = step.statements.findIndex((sql) =>
     sql.startsWith("CREATE TABLE IF NOT EXISTS pending_highlight ("),

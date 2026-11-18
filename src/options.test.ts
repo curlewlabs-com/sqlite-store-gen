@@ -67,6 +67,20 @@ describe("render options", () => {
     );
   });
 
+  // A Kotlin `package` line does not parse with a keyword segment, which the pattern
+  // above admits because a keyword is a lowercase word.
+  test.each([
+    ["kotlinPackage", "org.example.object", "object"],
+    ["bindingPackage", "org.when.sqlite", "when"],
+  ] as const)("rejects %s %p", async (key, value, keyword) => {
+    const spec = await loadExample();
+    expect(() =>
+      renderLocalSQLiteSources(spec, { ...OPTIONS, [key]: value }),
+    ).toThrow(
+      `${key} "${value}" has the segment "${keyword}", which is a Kotlin keyword`,
+    );
+  });
+
   test.each(['notes".sqlite3', "data/notes.sqlite3", ".notes", ""])(
     "rejects databaseFileName %p",
     async (value) => {
