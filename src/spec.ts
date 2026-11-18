@@ -16,6 +16,8 @@ import { validateKeyAllocation } from "./key-allocation";
 
 import { validateIndexes } from "./indexes";
 
+import { validateTableShape } from "./spec-shape";
+
 const SUPPORTED_SPEC_VERSION = 3;
 
 export function normalizeLocalSQLiteSpec(
@@ -26,6 +28,10 @@ export function normalizeLocalSQLiteSpec(
   }
   if (!Array.isArray(raw.tables) || raw.tables.length === 0) {
     throw new Error("Local SQLite spec must declare at least one table");
+  }
+
+  for (const table of raw.tables) {
+    validateTableShape(table);
   }
 
   const liveTableNames = new Set<string>();

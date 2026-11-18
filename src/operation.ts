@@ -423,11 +423,8 @@ export function validateLocalSQLiteOperation(
       );
     }
   }
+  // Its fields are checked with the rest of the spec's shape (validateTableShape).
   if (operation.boundedScanException !== undefined) {
-    validateBoundedScanException(
-      operation.name,
-      operation.boundedScanException,
-    );
     validateUnbrandedTerms(table, operation, predicate);
     return;
   }
@@ -511,19 +508,6 @@ function validateOrderedHead(
     throw new Error(
       `${operation.name} declares an orderedHead on singleton table ${table.name}; a head read is for a table whose keys the caller does not know, so it requires keyedBy`,
     );
-  }
-}
-
-function validateBoundedScanException(
-  operationName: string,
-  exception: NonNullable<LocalSQLiteOperationSpec["boundedScanException"]>,
-): void {
-  for (const [field, value] of Object.entries(exception)) {
-    if (value.trim() === "") {
-      throw new Error(
-        `${operationName} bounded scan exception has empty ${field}`,
-      );
-    }
   }
 }
 
