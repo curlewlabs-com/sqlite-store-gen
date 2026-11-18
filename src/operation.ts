@@ -99,7 +99,7 @@ export interface LocalSQLitePredicateTerm {
 // Dynamic due-time admission instead binds an aliased predicate parameter, so the
 // comparison and replacement deadlines remain independent values.
 //
-// Deliberately NOT counted toward index coverage (`isPredicateIndexCovered` reads only
+// Deliberately NOT counted toward index coverage (`predicateCoverage` reads only
 // the bound predicate): a guard narrows a row the key already found, so it can never be
 // the thing that keeps a statement off a scan.
 export interface LocalSQLiteGuardTerm {
@@ -428,13 +428,14 @@ export function validateLocalSQLiteOperation(
     validateUnbrandedTerms(table, operation, predicate);
     return;
   }
-  if (
-    !isPredicateIndexCovered(
-      table,
-      predicate,
-      operation.deleteSummary !== undefined,
-    )
-  ) {
+  const countedOwnerCleanup = operation.deleteSummary !== undefined;
+  const coverage = predicateCoverage(table, predicate, countedOwnerCleanup);
+  if (coverage === "nonUniqueIndex") {
+    throw new Error(
+      `${operation.name} is keyed on a non-unique index; the generated ${operation.kind} expects at most one matching row, and a read of several throws while an update or delete of several writes them all before it throws. Key it on the primary key`,
+    );
+  }
+  if (coverage === "none") {
     throw new Error(
       `${operation.name} predicate is not covered by an emitted key or index; declare indexed access or a bounded scan exception`,
     );
@@ -511,28 +512,37 @@ function validateOrderedHead(
   }
 }
 
-function isPredicateIndexCovered(
+// What keeps an operation's predicate off a scan, if anything does.
+//
+// Every operation but the counted cleanup is a single-row operation: the emitted read
+// returns one row and the emitted update or delete expects one changed row. So only a
+// key, whose every column the predicate binds by equality, admits one. A plain index
+// over the same columns keeps the statement off a scan but says nothing about how many
+// rows match, and is reported apart so the refusal can say so.
+//
+// The counted cleanup is a set operation by design, and the only one that may visit an
+// owner's whole index prefix.
+function predicateCoverage(
   table: LocalSQLiteOperationTableSpec,
   predicate: LocalSQLitePredicateTerm[],
   countedOwnerCleanup: boolean,
-): boolean {
+): "key" | "nonUniqueIndex" | "none" {
   const equalityColumns = new Set(
     predicate
       .filter((term) => term.operator === "=")
       .map((term) => term.column),
   );
-  // Only the validated counted cleanup may visit an owner's entire index prefix.
-  // Ordinary operations must retain the complete-key coverage they had before indexes.
-  const candidates = [
-    table.primaryKey,
-    ...table.uniqueKeys,
-    ...table.indexes.map((index) => index.columns),
-  ];
-  return candidates.some(
-    (columns) =>
-      columns.length > 0 &&
-      (countedOwnerCleanup
-        ? equalityColumns.has(columns[0]!)
-        : columns.every((column) => equalityColumns.has(column))),
-  );
+  const indexes = table.indexes.map((index) => index.columns);
+  if (countedOwnerCleanup) {
+    return [table.primaryKey, ...table.uniqueKeys, ...indexes].some(
+      (columns) => columns.length > 0 && equalityColumns.has(columns[0]!),
+    )
+      ? "key"
+      : "none";
+  }
+  const binds = (columns: string[]) =>
+    columns.length > 0 &&
+    columns.every((column) => equalityColumns.has(column));
+  if ([table.primaryKey, ...table.uniqueKeys].some(binds)) return "key";
+  return indexes.some(binds) ? "nonUniqueIndex" : "none";
 }

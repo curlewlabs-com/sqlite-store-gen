@@ -377,4 +377,49 @@ describe("schema migration spec", () => {
       "is not an allowlisted form",
     );
   });
+
+  // The example's ladder creates the highlight queue in one step, and nothing after that
+  // step names its columns, so every per-statement check passes a CREATE that drops or
+  // changes one. An upgraded store would then lack what a fresh install has, and the
+  // first generated statement naming the column would fail on that device alone.
+  test("rejects a ladder whose tables end with columns the baseline does not declare", async () => {
+    const createsQueue = (sql: string) =>
+      sql.startsWith("CREATE TABLE IF NOT EXISTS pending_highlight (");
+    for (const [change, from, to] of [
+      ["drops", "    margin_note TEXT,\n", ""],
+      ["retypes", "excerpt TEXT NOT NULL", "excerpt INTEGER NOT NULL"],
+      ["relaxes", "excerpt TEXT NOT NULL", "excerpt TEXT"],
+      [
+        "adds",
+        "    excerpt TEXT NOT NULL,\n",
+        "    excerpt TEXT NOT NULL,\n    tag TEXT,\n",
+      ],
+      ["loosens", ") STRICT", ")"],
+    ] as const) {
+      const invalid = cloneSpec(await loadExampleRaw());
+      const step = invalid.migrations.find((migration) =>
+        migration.statements.some(createsQueue),
+      )!;
+      const index = step.statements.findIndex(createsQueue);
+      const changed = step.statements[index]!.replace(from, to);
+      expect(changed, change).not.toBe(step.statements[index]);
+      step.statements[index] = changed;
+      expect(() => normalizeLocalSQLiteSpec(invalid), change).toThrow(
+        "the ladder leaves table pending_highlight with",
+      );
+    }
+
+    // A key column cannot hold NULL whether or not it says NOT NULL, so a step that
+    // writes it out is the same shape as the baseline, which does not.
+    const equivalent = cloneSpec(await loadExampleRaw());
+    const step = equivalent.migrations.find((migration) =>
+      migration.statements.some(createsQueue),
+    )!;
+    const index = step.statements.findIndex(createsQueue);
+    step.statements[index] = step.statements[index]!.replace(
+      "staged_at_ms INTEGER PRIMARY KEY",
+      "staged_at_ms INTEGER PRIMARY KEY NOT NULL",
+    );
+    expect(() => normalizeLocalSQLiteSpec(equivalent)).not.toThrow();
+  });
 });
