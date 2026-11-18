@@ -276,10 +276,6 @@ built; the others are worth knowing before you write such a spec.
 - **A table whose writes read the version back but which has no `read`, or which
   has more than one `read`,** emits its version-reader constant zero times or
   twice: fails to compile.
-- **Spec fields are not all type-checked at run time.** A fractional `INTEGER`
-  default, a misspelled `sqliteType`, or an empty `boundedScanException` object
-  is accepted; the last admits an unindexed operation without the bound and
-  rationale it is meant to record.
 
 ## Development
 
