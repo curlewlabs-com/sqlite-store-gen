@@ -66,7 +66,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: curlewlabs-com/curlew-sqlite
-          # renovate: datasource=github-tags depName=curlewlabs-com/curlew-sqlite
+          # renovate: datasource=github-tags depName=curlewlabs-com/curlew-sqlite pin=digest
           ref: 9534bc2e7946013ce51a628f6333905cccef1393 # v0.1.0
           path: vendor/curlew-sqlite
           persist-credentials: false
@@ -97,7 +97,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: curlewlabs-com/curlew-sqlite
-          # renovate: datasource=github-tags depName=curlewlabs-com/curlew-sqlite
+          # renovate: datasource=github-tags depName=curlewlabs-com/curlew-sqlite pin=digest
           ref: 9534bc2e7946013ce51a628f6333905cccef1393 # v0.1.0
           path: vendor/curlew-sqlite
           persist-credentials: false
