@@ -39,11 +39,16 @@ export function validateIndexes(tables: LocalSQLiteSchemaTableSpec[]): void {
   }
 }
 
+// The baseline create's statement for an index. `IF NOT EXISTS` for the reason the
+// baseline's tables carry it: the baseline runs on any store at version 0, and one that
+// something other than this generator built may already hold the index, which a plain
+// CREATE INDEX would refuse on every open. A ladder step's index is authored, and the
+// replay checks its absence itself.
 export function createIndexStatement(
   table: string,
   index: LocalSQLiteIndexSpec,
 ): string {
-  return `CREATE INDEX ${index.name} ON ${table} (${index.columns.join(", ")})`;
+  return `CREATE INDEX IF NOT EXISTS ${index.name} ON ${table} (${index.columns.join(", ")})`;
 }
 
 export function verifyIndexParity(
