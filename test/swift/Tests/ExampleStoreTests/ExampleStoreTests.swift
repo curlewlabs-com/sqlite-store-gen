@@ -189,6 +189,54 @@ final class ExampleStoreTests: XCTestCase {
         }
     }
 
+    // An insert returns the version its own upsert wrote, on the insert arm and on the
+    // conflict arm alike, and it is the version the row then holds.
+    func testInsertReturnsTheVersionItStored() throws {
+        let database = try open()
+        defer { try? LocalSQLiteGeneratedStore.close(database) }
+
+        for (reader, expected) in [("reader-1", Int64(1)), ("reader-2", Int64(2))] {
+            let returned = try SignedInReaderOperations.insertOrReplace(
+                database: database, readerId: SignedInReaderId(value: reader))
+            XCTAssertEqual(returned.value, expected)
+            let row = try XCTUnwrap(try SignedInReaderOperations.read(database: database))
+            XCTAssertEqual(row.rowVersion, returned)
+            XCTAssertEqual(row.readerId.value, reader)
+        }
+    }
+
+    // An insert that returns its version makes its change at the first step and commits
+    // when its statement finishes. A reader holding the store makes the commit wait out
+    // the busy budget and fail, and the write span reports that lost budget, rather than
+    // a success timed at the first step.
+    func testInsertReportsContentionAtCommitAsALostBudget() throws {
+        final class Spans { var recorded: [LocalSQLiteStoreSpan] = [] }
+        let spans = Spans()
+        let url = directory.appendingPathComponent("reader.sqlite3")
+        let database = try open()
+        defer { try? LocalSQLiteGeneratedStore.close(database) }
+        database.spanObserver = { spans.recorded.append($0) }
+        _ = try SignedInReaderOperations.insertOrReplace(
+            database: database, readerId: SignedInReaderId(value: "reader-1"))
+
+        var reader: OpaquePointer?
+        XCTAssertEqual(curlew_sqlite3_open_v2(url.path, &reader, SQLITE_OPEN_READWRITE, nil), SQLITE_OK)
+        defer { _ = curlew_sqlite3_close_v2(reader) }
+        var read: OpaquePointer?
+        XCTAssertEqual(
+            curlew_sqlite3_prepare_v2(reader, "SELECT reader_id FROM signed_in_reader", -1, &read, nil),
+            SQLITE_OK)
+        defer { _ = curlew_sqlite3_finalize(read) }
+        XCTAssertEqual(curlew_sqlite3_step(read), SQLITE_ROW)
+
+        spans.recorded.removeAll()
+        XCTAssertThrowsError(try SignedInReaderOperations.insertOrReplace(
+            database: database, readerId: SignedInReaderId(value: "reader-2")))
+        let writes = spans.recorded.filter { $0.kind == .write }
+        XCTAssertEqual(writes.count, 1)
+        XCTAssertEqual(writes.first?.lostBudget, true)
+    }
+
     private func stage(
         _ database: GeneratedLocalSQLiteDatabase, at key: Int64
     ) throws -> PendingHighlightInsertResult {

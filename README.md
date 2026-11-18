@@ -116,6 +116,12 @@ const sources = renderLocalSQLiteSources(
 curlew-sqlite's README has both recipes. Each open checks the engine's version
 floor and exact source ID, and refuses an engine that is not the pinned one.
 
+The generated code needs SQLite 3.35.0 or later, for the `RETURNING` clause an
+`insert` returns its version with. The generator holds no engine floor of its
+own: the binding's floor is the one an open enforces, and curlew-sqlite's is
+well above it. An app that binds the generated code to another engine owes the
+same floor.
+
 ### Open the store and call it
 
 ```kotlin
@@ -255,10 +261,6 @@ Each of these needs a spec that does something the example does not. The ones
 marked "fails to compile" fail loudly the first time the generated file is
 built; the others are worth knowing before you write such a spec.
 
-- **An `insert` reads the version it returns after its write commits.** Another
-  process writing the same row in between makes the returned version that
-  writer's. The row itself is written correctly. Use `casUpdate` where the
-  version matters.
 - **The ladder check compares a table's STRICT flag and its columns by name,
   type, nullability and key, not by CHECK or DEFAULT.** A migration
   `CREATE TABLE` whose column carries a different CHECK than the spec declares

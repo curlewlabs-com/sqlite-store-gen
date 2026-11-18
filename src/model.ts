@@ -203,11 +203,10 @@ export interface NormalizedTable {
   rowType: string;
   cursorFn: string;
   versionReader: string;
-  // The private row_version reader is emitted only when an operation reads the
-  // version back - an insert (returns the new version) or a compare-and-set (reads
-  // the observed version before matching). A table whose only writes are an
-  // ensure (create-if-absent, returns a Boolean) and a set-based delete never reads
-  // it, so emitting it would leave an unused private function.
+  // The private row_version reader is emitted only when a compare-and-set reads the
+  // version back before matching. An insert returns the version its upsert's RETURNING
+  // hands back, so a table without a compare-and-set never reads it, and emitting it
+  // would leave an unused private function.
   emitsVersionReader: boolean;
   kotlinReadVersionConst: string;
   swiftReadVersionConst: string;

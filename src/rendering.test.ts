@@ -218,14 +218,15 @@ describe("generated platform rendering", () => {
     );
   });
 
-  // The settings row's writes are column sets and a reset - none reads the version back
-  // - so its private version reader is not emitted, leaving no unused private function.
+  // Only a compare-and-set reads the version back. The settings row's writes are column
+  // sets and a reset, and the signed-in reader's insert returns the version its own
+  // statement wrote, so neither emits a version reader that nothing would call.
   test("emits a version reader only for a table whose writes read the version back", async () => {
     const { kotlin, swift } = render(await loadExample());
 
     for (const output of [kotlin, swift]) {
-      expect(output).toContain("readStoredReaderVersion");
       expect(output).toContain("readStoredProfileVersion");
+      expect(output).not.toContain("readStoredReaderVersion");
       expect(output).not.toContain("readStoredSettingsVersion");
     }
   });
