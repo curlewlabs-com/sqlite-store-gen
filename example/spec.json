@@ -1,0 +1,510 @@
+{
+  "version": 3,
+  "schemaVersion": 4,
+  "migrations": [
+    {
+      "toVersion": 2,
+      "doc": "Seeds the settings row on stores created before the baseline seeded it.",
+      "statements": [
+        "INSERT OR IGNORE INTO app_settings (singleton_id, theme, tour_shown, last_highlight_key_ms, row_version) VALUES (1, 'system', 0, 0, 1)"
+      ]
+    },
+    {
+      "toVersion": 3,
+      "doc": "Adds the reading speed preference to the settings row.",
+      "statements": [
+        "ALTER TABLE app_settings ADD COLUMN words_per_minute INTEGER NOT NULL DEFAULT 250"
+      ]
+    },
+    {
+      "toVersion": 4,
+      "doc": "Adds the highlight queue and the index its per-reader cleanup reads.",
+      "statements": [
+        "CREATE TABLE IF NOT EXISTS pending_highlight (\n    staged_at_ms INTEGER PRIMARY KEY,\n    reader_id TEXT NOT NULL,\n    book_isbn TEXT NOT NULL,\n    excerpt TEXT NOT NULL,\n    margin_note TEXT,\n    page_number INTEGER,\n    captured_at_ms INTEGER NOT NULL,\n    upload_attempts INTEGER NOT NULL,\n    retry_not_before_ms INTEGER NOT NULL,\n    row_version INTEGER NOT NULL CHECK (row_version >= 1)\n) STRICT",
+        "CREATE INDEX idx_pending_highlight_reader_captured ON pending_highlight (reader_id, captured_at_ms)"
+      ]
+    }
+  ],
+  "obsoleteTables": ["legacy_reading_cache"],
+  "tables": [
+    {
+      "name": "app_settings",
+      "doc": "Settings that belong to the install rather than to whoever is reading.",
+      "primaryKey": ["singleton_id"],
+      "uniqueKeys": [],
+      "indexes": [],
+      "analyze": false,
+      "bootstrapRow": true,
+      "columns": [
+        {
+          "name": "singleton_id",
+          "sqliteType": "INTEGER",
+          "nullable": false,
+          "brand": "AppSettingsSlotId",
+          "check": "singleton_id = 1"
+        },
+        {
+          "name": "theme",
+          "sqliteType": "TEXT",
+          "nullable": false,
+          "brand": "AppSettingsTheme",
+          "default": "system",
+          "doc": "The colour theme the reader picked: light, dark or system."
+        },
+        {
+          "name": "words_per_minute",
+          "sqliteType": "INTEGER",
+          "nullable": false,
+          "brand": "AppSettingsWordsPerMinute",
+          "default": 250
+        },
+        {
+          "name": "tour_shown",
+          "sqliteType": "INTEGER",
+          "nullable": false,
+          "brand": "AppSettingsTourShown",
+          "check": "tour_shown IN (0, 1)",
+          "default": 0,
+          "survivesReset": true,
+          "doc": "Set once the first-run tour has been shown; a reset of the settings keeps it."
+        },
+        {
+          "name": "last_highlight_key_ms",
+          "sqliteType": "INTEGER",
+          "nullable": false,
+          "brand": "AppSettingsLastHighlightKeyMs",
+          "default": 0
+        },
+        {
+          "name": "row_version",
+          "sqliteType": "INTEGER",
+          "nullable": false,
+          "brand": "StoredAppSettingsRowVersion",
+          "check": "row_version >= 1"
+        }
+      ],
+      "operations": [
+        {
+          "name": "read_app_settings",
+          "kind": "read",
+          "predicate": [
+            {
+              "column": "singleton_id",
+              "operator": "="
+            }
+          ]
+        },
+        {
+          "name": "set_theme_app_settings",
+          "kind": "update",
+          "setColumns": ["theme"],
+          "predicate": [
+            {
+              "column": "singleton_id",
+              "operator": "="
+            }
+          ]
+        },
+        {
+          "name": "set_words_per_minute_app_settings",
+          "kind": "update",
+          "setColumns": ["words_per_minute"],
+          "predicate": [
+            {
+              "column": "singleton_id",
+              "operator": "="
+            }
+          ]
+        },
+        {
+          "name": "claim_tour_app_settings",
+          "kind": "update",
+          "setColumns": ["tour_shown"],
+          "predicate": [
+            {
+              "column": "singleton_id",
+              "operator": "="
+            }
+          ],
+          "guard": [
+            {
+              "column": "tour_shown",
+              "value": 0
+            }
+          ]
+        },
+        {
+          "name": "reset_to_defaults_app_settings",
+          "kind": "resetToDefaults",
+          "predicate": [
+            {
+              "column": "singleton_id",
+              "operator": "="
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "signed_in_reader",
+      "doc": "Who is reading now: the reader id, or the empty string when nobody is signed in.",
+      "primaryKey": ["singleton_id"],
+      "uniqueKeys": [],
+      "indexes": [],
+      "analyze": false,
+      "columns": [
+        {
+          "name": "singleton_id",
+          "sqliteType": "INTEGER",
+          "nullable": false,
+          "brand": "SignedInReaderSlotId",
+          "check": "singleton_id = 1"
+        },
+        {
+          "name": "reader_id",
+          "sqliteType": "TEXT",
+          "nullable": false,
+          "brand": "SignedInReaderId"
+        },
+        {
+          "name": "row_version",
+          "sqliteType": "INTEGER",
+          "nullable": false,
+          "brand": "StoredSignedInReaderRowVersion",
+          "check": "row_version >= 1"
+        }
+      ],
+      "operations": [
+        {
+          "name": "read_signed_in_reader",
+          "kind": "read",
+          "predicate": [
+            {
+              "column": "singleton_id",
+              "operator": "="
+            }
+          ]
+        },
+        {
+          "name": "insert_or_replace_signed_in_reader",
+          "kind": "insert"
+        }
+      ]
+    },
+    {
+      "name": "reader_profile",
+      "doc": "One row per reader, created when the reader first signs in.",
+      "primaryKey": ["reader_id"],
+      "uniqueKeys": [],
+      "indexes": [],
+      "analyze": false,
+      "keyedBy": "reader_id",
+      "operationBrands": {
+        "expectedVersion": "ExpectedReaderProfileRowVersion"
+      },
+      "columns": [
+        {
+          "name": "reader_id",
+          "sqliteType": "TEXT",
+          "nullable": false,
+          "brand": "ReaderProfileReaderId"
+        },
+        {
+          "name": "display_name",
+          "sqliteType": "TEXT",
+          "nullable": false,
+          "brand": "ReaderProfileDisplayName",
+          "default": ""
+        },
+        {
+          "name": "books_finished",
+          "sqliteType": "INTEGER",
+          "nullable": false,
+          "brand": "ReaderProfileBooksFinished",
+          "default": 0
+        },
+        {
+          "name": "sync_not_before_ms",
+          "sqliteType": "INTEGER",
+          "nullable": false,
+          "brand": "ReaderProfileSyncNotBeforeMs",
+          "default": 0,
+          "doc": "The earliest time the next sync may run; only ever moved later."
+        },
+        {
+          "name": "row_version",
+          "sqliteType": "INTEGER",
+          "nullable": false,
+          "brand": "StoredReaderProfileRowVersion",
+          "check": "row_version >= 1"
+        }
+      ],
+      "operations": [
+        {
+          "name": "read_reader_profile",
+          "kind": "read",
+          "predicate": [
+            {
+              "column": "reader_id",
+              "operator": "=",
+              "brand": "ReaderProfileReaderId"
+            }
+          ]
+        },
+        {
+          "name": "ensure_reader_profile",
+          "kind": "ensure"
+        },
+        {
+          "name": "set_display_name_reader_profile",
+          "kind": "update",
+          "setColumns": ["display_name"],
+          "predicate": [
+            {
+              "column": "reader_id",
+              "operator": "=",
+              "brand": "ReaderProfileReaderId"
+            }
+          ]
+        },
+        {
+          "name": "extend_sync_deadline_reader_profile",
+          "kind": "update",
+          "setColumns": ["sync_not_before_ms"],
+          "integerMaximum": true,
+          "predicate": [
+            {
+              "column": "reader_id",
+              "operator": "=",
+              "brand": "ReaderProfileReaderId"
+            }
+          ]
+        },
+        {
+          "name": "compare_and_set_books_finished_reader_profile",
+          "kind": "casUpdate",
+          "setColumns": ["books_finished"]
+        },
+        {
+          "name": "delete_reader_profile",
+          "kind": "delete",
+          "predicate": [
+            {
+              "column": "reader_id",
+              "operator": "=",
+              "brand": "ReaderProfileReaderId"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "pending_highlight",
+      "doc": "Highlights waiting to upload, oldest first. Any process may stage one for whoever is signed in.",
+      "primaryKey": ["staged_at_ms"],
+      "uniqueKeys": [],
+      "indexes": [
+        {
+          "name": "idx_pending_highlight_reader_captured",
+          "columns": ["reader_id", "captured_at_ms"]
+        }
+      ],
+      "analyze": true,
+      "keyedBy": "staged_at_ms",
+      "columns": [
+        {
+          "name": "staged_at_ms",
+          "sqliteType": "INTEGER",
+          "nullable": false,
+          "brand": "PendingHighlightStagedAtMs"
+        },
+        {
+          "name": "reader_id",
+          "sqliteType": "TEXT",
+          "nullable": false,
+          "brand": "PendingHighlightReaderId"
+        },
+        {
+          "name": "book_isbn",
+          "sqliteType": "TEXT",
+          "nullable": false,
+          "brand": "PendingHighlightBookIsbn"
+        },
+        {
+          "name": "excerpt",
+          "sqliteType": "TEXT",
+          "nullable": false,
+          "brand": "PendingHighlightExcerpt"
+        },
+        {
+          "name": "margin_note",
+          "sqliteType": "TEXT",
+          "nullable": true,
+          "brand": "PendingHighlightMarginNote"
+        },
+        {
+          "name": "page_number",
+          "sqliteType": "INTEGER",
+          "nullable": true,
+          "brand": "PendingHighlightPageNumber",
+          "doc": "The page the excerpt is on, when the book reports pages."
+        },
+        {
+          "name": "captured_at_ms",
+          "sqliteType": "INTEGER",
+          "nullable": false,
+          "brand": "PendingHighlightCapturedAtMs"
+        },
+        {
+          "name": "upload_attempts",
+          "sqliteType": "INTEGER",
+          "nullable": false,
+          "brand": "PendingHighlightUploadAttempts"
+        },
+        {
+          "name": "retry_not_before_ms",
+          "sqliteType": "INTEGER",
+          "nullable": false,
+          "brand": "PendingHighlightRetryNotBeforeMs"
+        },
+        {
+          "name": "row_version",
+          "sqliteType": "INTEGER",
+          "nullable": false,
+          "brand": "StoredPendingHighlightRowVersion",
+          "check": "row_version >= 1"
+        }
+      ],
+      "operations": [
+        {
+          "name": "stage_pending_highlight",
+          "kind": "insertForCurrentOwner",
+          "ownerFrom": {
+            "table": "signed_in_reader",
+            "column": "reader_id",
+            "into": "reader_id"
+          },
+          "alsoSet": {
+            "table": "app_settings",
+            "setColumns": ["last_highlight_key_ms"]
+          },
+          "allocateKey": {
+            "alsoSetColumn": "last_highlight_key_ms"
+          }
+        },
+        {
+          "name": "read_head_pending_highlight",
+          "kind": "read",
+          "orderedHead": {
+            "column": "staged_at_ms"
+          }
+        },
+        {
+          "name": "read_successor_pending_highlight",
+          "kind": "read",
+          "orderedSuccessor": {
+            "column": "staged_at_ms"
+          },
+          "predicate": [
+            {
+              "column": "staged_at_ms",
+              "operator": ">",
+              "brand": "PendingHighlightStagedAtMs"
+            }
+          ]
+        },
+        {
+          "name": "admit_retry_pending_highlight",
+          "kind": "update",
+          "setColumns": ["upload_attempts", "retry_not_before_ms"],
+          "predicate": [
+            {
+              "column": "staged_at_ms",
+              "operator": "=",
+              "brand": "PendingHighlightStagedAtMs"
+            },
+            {
+              "column": "retry_not_before_ms",
+              "operator": "<=",
+              "brand": "PendingHighlightRetryNotBeforeMs",
+              "parameter": "retry_due_by_ms"
+            }
+          ]
+        },
+        {
+          "name": "delete_pending_highlight",
+          "kind": "delete",
+          "predicate": [
+            {
+              "column": "staged_at_ms",
+              "operator": "=",
+              "brand": "PendingHighlightStagedAtMs"
+            }
+          ]
+        },
+        {
+          "name": "delete_for_reader_pending_highlight",
+          "kind": "delete",
+          "predicate": [
+            {
+              "column": "reader_id",
+              "operator": "=",
+              "brand": "PendingHighlightReaderId"
+            }
+          ],
+          "deleteSummary": {
+            "observedAtColumn": "captured_at_ms"
+          }
+        }
+      ]
+    }
+  ],
+  "channel": {
+    "name": "example.reader/storage",
+    "doc": "The Dart side's method set over the operations above.",
+    "subjects": [
+      {
+        "name": "settings",
+        "prefix": "localSQLite.settings.",
+        "doc": "The install's settings row.",
+        "methods": [
+          {
+            "name": "readTheme",
+            "returns": "stringOrNull"
+          },
+          {
+            "name": "setTheme",
+            "returns": "void",
+            "args": [
+              {
+                "name": "theme",
+                "type": "string"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "reader",
+        "prefix": "localSQLite.reader.",
+        "doc": "The signed-in reader and their profile.",
+        "methods": [
+          {
+            "name": "read",
+            "returns": "stringOrNull"
+          },
+          {
+            "name": "setReader",
+            "returns": "void",
+            "args": [
+              {
+                "name": "readerId",
+                "type": "string"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

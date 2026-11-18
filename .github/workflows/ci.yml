@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # Named, so every step runs as `bash -eo pipefail`: with the shell left unset, a
+    # pipeline's status is its last command's.
+    shell: bash
+
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.ref_name == 'main' && github.run_id || 'pr' }}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          # renovate: datasource=github-releases depName=oven-sh/bun extractVersion=^bun-v(?<version>.+)$
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test
+      # The release asset is this tarball, so its file list is checked on every change:
+      # the generator's sources, and no test file or fixture.
+      - name: Pack the release tarball
+        run: bun pm pack --destination "$RUNNER_TEMP"
+      - name: Check the tarball's contents
+        run: |
+          tar -tzf "$RUNNER_TEMP"/curlewlabs-com-sqlite-store-gen-*.tgz | sort > "$RUNNER_TEMP/packed.txt"
+          cat "$RUNNER_TEMP/packed.txt"
+          grep -qx 'package/src/index.ts' "$RUNNER_TEMP/packed.txt"
+          grep -qx 'package/src/cli.ts' "$RUNNER_TEMP/packed.txt"
+          grep -qx 'package/LICENSE-MIT' "$RUNNER_TEMP/packed.txt"
+          grep -qx 'package/LICENSE-APACHE' "$RUNNER_TEMP/packed.txt"
+          if grep -E '\.test\.ts$|test-support|test-timeout|example/|test/' "$RUNNER_TEMP/packed.txt"; then
+            echo "test files in the tarball" >&2
+            exit 1
+          fi
+
+  test-swift:
+    # The emitted Swift compiled against the engine curlew-sqlite pins - its amalgamation,
+    # fetched and checked against the pin's SHA-256 by curlew-sqlite's own script, its C
+    # shim and its identity check - and its storage tests run on it. The generator's own
+    # suite runs here too, because only here is swiftc present for its typecheck case.
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: curlewlabs-com/curlew-sqlite
+          # renovate: datasource=github-tags depName=curlewlabs-com/curlew-sqlite
+          ref: 9534bc2e7946013ce51a628f6333905cccef1393 # v0.1.0
+          path: vendor/curlew-sqlite
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          # renovate: datasource=github-releases depName=oven-sh/bun extractVersion=^bun-v(?<version>.+)$
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - name: Prepare the Swift package
+        run: sh test/swift/prepare.sh vendor/curlew-sqlite
+      - name: Run the Swift storage tests
+        run: swift test --package-path test/swift 2>&1 | tee "$RUNNER_TEMP/swift-test.log"
+      - name: Require that the storage tests ran
+        # So that a run which executed no test cannot pass, the count is read back from
+        # XCTest's own summary.
+        run: grep -E 'Executed [1-9][0-9]* tests?, with 0 failures' "$RUNNER_TEMP/swift-test.log" | tail -1
+
+  test-kotlin:
+    # The emitted Kotlin compiled against curlew-sqlite's Android library, taken as source
+    # the way a consumer takes it, with the Android SDK on the runner.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: curlewlabs-com/curlew-sqlite
+          # renovate: datasource=github-tags depName=curlewlabs-com/curlew-sqlite
+          ref: 9534bc2e7946013ce51a628f6333905cccef1393 # v0.1.0
+          path: vendor/curlew-sqlite
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          # renovate: datasource=github-releases depName=oven-sh/bun extractVersion=^bun-v(?<version>.+)$
+          bun-version: 1.4.4
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          # renovate: datasource=java-version depName=java-jdk
+          java-version: "21.0.13"
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          # renovate: datasource=gradle-version depName=gradle
+          gradle-version: "9.8.2"
+      - run: bun install --frozen-lockfile
+      - name: Generate the example's Kotlin
+        run: sh test/android/prepare.sh
+      - name: Compile it against the binding
+        run: gradle --no-daemon -p test/android "-PcurlewSqliteDir=$GITHUB_WORKSPACE/vendor/curlew-sqlite" :example:compileReleaseKotlin
+
+  baseline:
+    # The checks every Curlew Labs repository runs, in one place:
+    # https://github.com/curlewlabs-com/ci-baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: curlewlabs-com/ci-baseline@f05f17a38ba2dfbaf0cde130a375b346e9a923a2 # v0.2.0
+
+  conclusion:
+    # The one check branch protection requires, so the jobs above can be renamed or split
+    # without editing the protection.
+    needs: [test, test-swift, test-kotlin, baseline]
+    runs-on: ubuntu-24.04
+    if: always()
+    steps:
+      - name: Require every check job to pass
+        env:
+          TEST: ${{ needs.test.result }}
+          TEST_SWIFT: ${{ needs.test-swift.result }}
+          TEST_KOTLIN: ${{ needs.test-kotlin.result }}
+          BASELINE: ${{ needs.baseline.result }}
+        run: test "$TEST" = success && test "$TEST_SWIFT" = success && test "$TEST_KOTLIN" = success && test "$BASELINE" = success

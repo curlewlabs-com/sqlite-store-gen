@@ -1,0 +1,29 @@
+{
+  // The generator runs under Bun, and so do its tests: bun:sqlite replays a spec's
+  // migration ladder in memory, and bun:test runs the suites, so one program covers
+  // the sources and the tests with Bun's types alone.
+  //
+  // rootDir is the package boundary. tsc refuses any source file the program
+  // reaches outside src/ (TS6059), so an import from a consumer's tree fails the
+  // typecheck.
+  //
+  // The opt-in strictness flags are on so a consumer with the same flags can
+  // typecheck these sources as part of its own program, since the package ships
+  // TypeScript source.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "types": ["bun"],
+    "rootDir": "src",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts"]
+}
