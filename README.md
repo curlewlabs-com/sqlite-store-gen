@@ -247,6 +247,43 @@ Known limits:
 - `deleteSummary` requires its owner column to be `TEXT`.
 - Spec format version `3` is the only one this release reads.
 
+## Known issues
+
+Each of these needs a spec that does something the example does not. The ones
+marked "fails to compile" fail loudly the first time the generated file is
+built; the others are worth knowing before you write such a spec.
+
+- **An index is coverage, not uniqueness.** An equality `read`, `update` or
+  `delete` on every column of a plain (non-unique) index is admitted, but the
+  emitted code expects one row. A `read` takes the first match; an `update` or
+  `delete` that matches several rows writes them all and then throws. Key
+  single-row operations on the primary key.
+- **An `insert` reads the version it returns after its write commits.** Another
+  process writing the same row in between makes the returned version that
+  writer's. The row itself is written correctly. Use `casUpdate` where the
+  version matters.
+- **The ladder is checked by table and index, not by column.** A migration
+  `CREATE TABLE` that leaves out or retypes a column the spec declares is
+  accepted, and an upgraded store then lacks it. Compare each step's DDL with
+  the baseline the generator emits; this repository's `src/migrations.test.ts`
+  shows one way.
+- **A baseline open of an untracked store that already holds an index fails** on
+  the plain `CREATE INDEX`. A store reaches version 0 with indexes only if
+  something other than this generator built it.
+- **Names are not checked for collisions or keywords after they are derived.**
+  Two operations whose names derive to the same method (`set_name_x` and
+  `set_name` on table `x`), channel methods that differ only in case,
+  overlapping insert and `alsoSet` columns, a column or subject named after a
+  Kotlin or Swift keyword, and a Kotlin package segment that is a keyword: each
+  fails to compile.
+- **A table whose writes read the version back but which has no `read`, or which
+  has more than one `read`,** emits its version-reader constant zero times or
+  twice: fails to compile.
+- **Spec fields are not all type-checked at run time.** A fractional `INTEGER`
+  default, a misspelled `sqliteType`, or an empty `boundedScanException` object
+  is accepted; the last admits an unindexed operation without the bound and
+  rationale it is meant to record.
+
 ## Development
 
 Use Bun 1.4.4.
