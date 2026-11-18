@@ -189,6 +189,19 @@ final class ExampleStoreTests: XCTestCase {
         }
     }
 
+    // A store at version 0 takes the baseline create, whatever it already holds. One that
+    // already has the baseline's index, as a store built by something else can, opens and
+    // is stamped, rather than failing every open on the index it already has.
+    func testBaselineCreateAcceptsAnIndexTheStoreAlreadyHolds() throws {
+        let url = directory.appendingPathComponent("reader.sqlite3")
+        try LocalSQLiteGeneratedStore.close(try open())
+        try stampUserVersion(0, at: url)
+
+        let database = try open()
+        defer { try? LocalSQLiteGeneratedStore.close(database) }
+        XCTAssertNotNil(try AppSettingsOperations.read(database: database))
+    }
+
     private func stage(
         _ database: GeneratedLocalSQLiteDatabase, at key: Int64
     ) throws -> PendingHighlightInsertResult {
