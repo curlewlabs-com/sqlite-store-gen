@@ -47,7 +47,7 @@ jobs:
           grep -qx 'package/src/cli.ts' "$RUNNER_TEMP/packed.txt"
           grep -qx 'package/LICENSE-MIT' "$RUNNER_TEMP/packed.txt"
           grep -qx 'package/LICENSE-APACHE' "$RUNNER_TEMP/packed.txt"
-          if grep -E '\.test\.ts$|test-support|example/|test/' "$RUNNER_TEMP/packed.txt"; then
+          if grep -E '\.test\.ts$|test-support|test-timeout|example/|test/' "$RUNNER_TEMP/packed.txt"; then
             echo "test files in the tarball" >&2
             exit 1
           fi
