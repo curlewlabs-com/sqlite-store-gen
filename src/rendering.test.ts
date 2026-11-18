@@ -16,7 +16,10 @@ import {
   withSchemaMigrations,
 } from "./test-support";
 
-const SWIFTC = Bun.which("swiftc");
+// Apple platforms only: the generated Swift uses Foundation API that only Apple's
+// Foundation has (the App Group container), so a swiftc on Linux rejects correct output.
+// CI runs this suite on macOS too, where the case is not skipped.
+const SWIFTC = process.platform === "darwin" ? Bun.which("swiftc") : null;
 
 // A use site for the example queue's nullable columns, appended to the generated Swift
 // before it is type-checked. The failure this is FOR survives a typecheck of the generated
