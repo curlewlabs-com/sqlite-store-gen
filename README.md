@@ -259,11 +259,12 @@ built; the others are worth knowing before you write such a spec.
   process writing the same row in between makes the returned version that
   writer's. The row itself is written correctly. Use `casUpdate` where the
   version matters.
-- **The ladder check compares columns by name, type, nullability and key, not by
-  CHECK or DEFAULT.** A migration `CREATE TABLE` whose column carries a
-  different CHECK than the spec declares is accepted, and an upgraded store
-  enforces the step's. Compare each step's CHECKs with the baseline the
-  generator emits; this repository's `src/migrations.test.ts` shows one way.
+- **The ladder check compares a table's STRICT flag and its columns by name,
+  type, nullability and key, not by CHECK or DEFAULT.** A migration
+  `CREATE TABLE` whose column carries a different CHECK than the spec declares
+  is accepted, and an upgraded store enforces the step's. Compare each step's
+  CHECKs with the baseline the generator emits; this repository's
+  `src/migrations.test.ts` shows one way.
 - **A baseline open of an untracked store that already holds an index fails** on
   the plain `CREATE INDEX`. A store reaches version 0 with indexes only if
   something other than this generator built it.

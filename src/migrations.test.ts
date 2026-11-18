@@ -394,6 +394,7 @@ describe("schema migration spec", () => {
         "    excerpt TEXT NOT NULL,\n",
         "    excerpt TEXT NOT NULL,\n    tag TEXT,\n",
       ],
+      ["loosens", ") STRICT", ")"],
     ] as const) {
       const invalid = cloneSpec(await loadExampleRaw());
       const step = invalid.migrations.find((migration) =>
@@ -404,8 +405,21 @@ describe("schema migration spec", () => {
       expect(changed, change).not.toBe(step.statements[index]);
       step.statements[index] = changed;
       expect(() => normalizeLocalSQLiteSpec(invalid), change).toThrow(
-        "the ladder leaves table pending_highlight with columns",
+        "the ladder leaves table pending_highlight with",
       );
     }
+
+    // A key column cannot hold NULL whether or not it says NOT NULL, so a step that
+    // writes it out is the same shape as the baseline, which does not.
+    const equivalent = cloneSpec(await loadExampleRaw());
+    const step = equivalent.migrations.find((migration) =>
+      migration.statements.some(createsQueue),
+    )!;
+    const index = step.statements.findIndex(createsQueue);
+    step.statements[index] = step.statements[index]!.replace(
+      "staged_at_ms INTEGER PRIMARY KEY",
+      "staged_at_ms INTEGER PRIMARY KEY NOT NULL",
+    );
+    expect(() => normalizeLocalSQLiteSpec(equivalent)).not.toThrow();
   });
 });
