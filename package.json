@@ -1,6 +1,6 @@
 {
   "name": "@curlewlabs-com/sqlite-store-gen",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Generate a typed SQLite storage layer in Kotlin and Swift, and the Dart channel constants beside it, from one declarative spec.",
   "license": "MIT OR Apache-2.0",
   "author": "Curlew Labs",
