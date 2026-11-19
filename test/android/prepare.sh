@@ -1,6 +1,6 @@
 #!/bin/sh
 # Writes the Kotlin the generator emits for the example spec into the example module,
-# with curlew-sqlite's published binding package (the generator's default).
+# importing curlew-sqlite's binding from the package that library publishes it in.
 #
 #   prepare.sh
 set -eu

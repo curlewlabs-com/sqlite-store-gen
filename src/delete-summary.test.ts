@@ -88,7 +88,6 @@ function withTenantQueue(
 
 const OPTIONS = {
   kotlinPackage: "org.example.storage",
-  bindingPackage: "org.example.sqlite",
   databaseFileName: "example.sqlite3",
   notice: "// test",
 };

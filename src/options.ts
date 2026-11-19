@@ -3,23 +3,22 @@
 
 import { KOTLIN_HARD_KEYWORDS } from "./identifiers";
 
-// The Kotlin package curlew-sqlite publishes its binding and engine guards in. Its JNI
-// shim resolves the binding class by this name, so an app taking that library as it is
-// published has nothing to supply; an app that vendors the binding into its own package
-// names that package instead.
-export const DEFAULT_BINDING_PACKAGE = "com.curlewlabs.sqlite";
-
 // What the caller supplies beside the spec: the values that name the consumer's app rather
-// than its schema - its Kotlin package, the package the SQLite binding lives in, its
-// database file, and a header naming its own spec and regenerate command.
+// than its schema - its Kotlin package, its database file, and a header naming its own
+// spec and regenerate command.
 export interface LocalSQLiteRenderOptions {
   kotlinPackage: string;
-  bindingPackage?: string;
   databaseFileName: string;
   notice: string;
 }
 
 export type ResolvedRenderOptions = Required<LocalSQLiteRenderOptions>;
+
+const OPTION_KEYS: readonly string[] = [
+  "kotlinPackage",
+  "databaseFileName",
+  "notice",
+] satisfies (keyof LocalSQLiteRenderOptions)[];
 
 // Each lands verbatim in generated source - a package in a Kotlin `package`/`import` line,
 // the file name in a Kotlin and a Swift string literal - so a value outside these shapes
@@ -30,28 +29,35 @@ const DATABASE_FILE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 export function resolveRenderOptions(
   options: LocalSQLiteRenderOptions,
 ): ResolvedRenderOptions {
+  // An option this renderer does not read would otherwise be dropped without a word, and
+  // the output would differ from what its caller asked for.
+  const unknown = Object.keys(options).filter(
+    (key) => !OPTION_KEYS.includes(key),
+  );
+  if (unknown.length > 0) {
+    throw new Error(
+      `unknown render option ${unknown.map((key) => `"${key}"`).join(", ")}; the options are ${OPTION_KEYS.join(", ")}`,
+    );
+  }
   const resolved: ResolvedRenderOptions = {
     kotlinPackage: options.kotlinPackage,
-    bindingPackage: options.bindingPackage ?? DEFAULT_BINDING_PACKAGE,
     databaseFileName: options.databaseFileName,
     notice: options.notice,
   };
-  for (const key of ["kotlinPackage", "bindingPackage"] as const) {
-    if (!KOTLIN_PACKAGE_PATTERN.test(resolved[key])) {
-      throw new Error(
-        `${key} "${resolved[key]}" must be a lowercase dotted Kotlin package name`,
-      );
-    }
-    // A `package` or `import` line takes no backticks from this generator, so a
-    // keyword segment (`org.example.object`) does not parse.
-    const keyword = resolved[key]
-      .split(".")
-      .find((segment) => KOTLIN_HARD_KEYWORDS.has(segment));
-    if (keyword !== undefined) {
-      throw new Error(
-        `${key} "${resolved[key]}" has the segment "${keyword}", which is a Kotlin keyword`,
-      );
-    }
+  if (!KOTLIN_PACKAGE_PATTERN.test(resolved.kotlinPackage)) {
+    throw new Error(
+      `kotlinPackage "${resolved.kotlinPackage}" must be a lowercase dotted Kotlin package name`,
+    );
+  }
+  // A `package` line takes no backticks from this generator, so a keyword segment
+  // (`org.example.object`) does not parse.
+  const keyword = resolved.kotlinPackage
+    .split(".")
+    .find((segment) => KOTLIN_HARD_KEYWORDS.has(segment));
+  if (keyword !== undefined) {
+    throw new Error(
+      `kotlinPackage "${resolved.kotlinPackage}" has the segment "${keyword}", which is a Kotlin keyword`,
+    );
   }
   if (!DATABASE_FILE_NAME_PATTERN.test(resolved.databaseFileName)) {
     throw new Error(

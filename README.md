@@ -77,9 +77,6 @@ The options:
   under the app's database directory. On iOS it lives under `local_sqlite/` in
   an App Group container.
 - `--kotlin-out`, `--swift-out`, `--dart-out`: where each file is written.
-- `--binding-package` (optional): the Kotlin package of the `CurlewSQLite`
-  binding. It defaults to `com.curlewlabs.sqlite`, where curlew-sqlite publishes
-  it. Pass your own package only if you vendor the binding into your module.
 - `--notice` (optional): the header written at the top of each file. It defaults
   to a line naming the spec.
 
