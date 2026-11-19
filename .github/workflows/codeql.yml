@@ -1,0 +1,128 @@
+name: CodeQL
+
+# Code scanning for the generator and for the code it emits. The Swift and
+# Kotlin the generator writes are what an app compiles and ships, so this
+# workflow renders example/spec.json and analyses that output, built against
+# curlew-sqlite the way CI builds it. GitHub's default setup can do neither:
+# the emitted code is not tracked, and it builds only with the engine checked
+# out beside it. The generator's TypeScript and the workflows are read from
+# source, as default setup reads them. GitHub refuses an upload from this
+# workflow while default setup is enabled, so the repository's default setup
+# stays off.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, as default setup schedules it, so new queries reach code that
+    # has not changed.
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # Named, so every step runs as `bash -eo pipefail`.
+    shell: bash
+
+concurrency:
+  group: codeql-${{ github.ref }}-${{ github.ref_name == 'main' && github.run_id || 'pr' }}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      # One language failing to build must not hide the others' results.
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+            runner: ubuntu-24.04
+          - language: javascript-typescript
+            build-mode: none
+            runner: ubuntu-24.04
+          - language: java-kotlin
+            build-mode: manual
+            runner: ubuntu-24.04
+          - language: swift
+            build-mode: manual
+            runner: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - if: matrix.build-mode == 'manual'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: curlewlabs-com/curlew-sqlite
+          # renovate: datasource=github-tags depName=curlewlabs-com/curlew-sqlite pin=digest
+          ref: 7346e624c990ad9fa4ba0473c1a504a1e46aab57 # v0.2.0
+          path: vendor/curlew-sqlite
+          persist-credentials: false
+      - if: matrix.build-mode == 'manual'
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          # renovate: datasource=github-releases depName=oven-sh/bun extractVersion=^bun-v(?<version>.+)$
+          bun-version: 1.4.4
+      - if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          # renovate: datasource=java-version depName=java-jdk
+          java-version: "21.0.13"
+      - if: matrix.language == 'java-kotlin'
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          # renovate: datasource=gradle-version depName=gradle
+          gradle-version: "9.8.2"
+      - if: matrix.build-mode == 'manual'
+        run: bun install --frozen-lockfile
+      # The example's output is rendered before CodeQL starts, so the
+      # analysis reads the emitted code and not the generator running.
+      - name: Render the example's Swift
+        if: matrix.language == 'swift'
+        run: sh test/swift/prepare.sh vendor/curlew-sqlite
+      - name: Render the example's Kotlin
+        if: matrix.language == 'java-kotlin'
+        run: sh test/android/prepare.sh
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # The suite default setup's `extended` runs.
+          queries: security-extended
+          # The CodeQL bundle released with the pinned action. Left unset, the
+          # action picks a bundle at run time, so the analyzer could change
+          # without a change here.
+          tools: linked
+      - name: Build the emitted Swift
+        if: matrix.language == 'swift'
+        # The extractor sees only what the compiler is run on. The library
+        # targets are the emitted store and the engine; the storage tests are
+        # left out, as test code that ships nowhere.
+        run: swift build --package-path test/swift
+      - name: Compile the emitted Kotlin
+        if: matrix.language == 'java-kotlin'
+        # The extractor sees only a compiler running in the traced process: no
+        # Gradle daemon, no Kotlin daemon and no build cache, all of which
+        # would compile, or skip compiling, out of its sight.
+        run: >-
+          gradle --no-daemon --no-build-cache -p test/android
+          -Pkotlin.compiler.execution.strategy=in-process
+          "-PcurlewSqliteDir=$GITHUB_WORKSPACE/vendor/curlew-sqlite"
+          :example:compileReleaseKotlin
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          # Default setup's categories, so each language's results continue
+          # under the name they were first reported with.
+          category: /language:${{ matrix.language }}
