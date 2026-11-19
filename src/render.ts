@@ -58,6 +58,10 @@ import { KOTLIN_BINDERS, SWIFT_BINDERS } from "./binders";
 // lose the budget learns so while it can still report it.
 const SQLITE_BUSY_TIMEOUT_MILLIS = 2500;
 
+// The Kotlin package curlew-sqlite publishes its binding and engine guards in. Its JNI
+// shim resolves the binding class by this name, so the emitted imports name it too.
+const BINDING_PACKAGE = "com.curlewlabs.sqlite";
+
 // ---------------------------------------------------------------------------
 // Rendering.
 // ---------------------------------------------------------------------------
@@ -96,11 +100,11 @@ function renderKotlin(
   const imports = [
     "import android.content.Context",
     "import android.os.Looper",
-    `import ${options.bindingPackage}.AndroidBundledSQLiteSourceIdGuard`,
-    `import ${options.bindingPackage}.AndroidBundledSQLiteVersionGuard`,
+    `import ${BINDING_PACKAGE}.AndroidBundledSQLiteSourceIdGuard`,
+    `import ${BINDING_PACKAGE}.AndroidBundledSQLiteVersionGuard`,
     // The whole binding surface. Nothing from org.sqlite.database.* is imported any more:
     // the AAR supplies the engine, and CurlewSQLite supplies the only route to it.
-    `import ${options.bindingPackage}.CurlewSQLite`,
+    `import ${BINDING_PACKAGE}.CurlewSQLite`,
     "import java.io.File",
     "import java.io.IOException",
   ].join("\n");

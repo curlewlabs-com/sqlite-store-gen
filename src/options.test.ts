@@ -1,35 +1,22 @@
 import { describe, expect, test } from "bun:test";
-import {
-  DEFAULT_BINDING_PACKAGE,
-  type LocalSQLiteRenderOptions,
-} from "./options";
+import type { LocalSQLiteRenderOptions } from "./options";
 import { renderLocalSQLiteSources } from "./render";
 import { loadExample } from "./test-support";
 
 const OPTIONS: LocalSQLiteRenderOptions = {
   kotlinPackage: "org.example.notes.storage",
-  bindingPackage: "org.example.notes.sqlite",
   databaseFileName: "notes.sqlite3",
   notice: "// other app header",
 };
 
 describe("render options", () => {
   // Each option names something of the consumer's own. Guards the regression where a
-  // template keeps a value literally: an app would ship a Kotlin import it cannot
-  // resolve, or a database file named for someone else.
+  // template keeps a value literally: an app would ship a package or a database file
+  // named for someone else.
   test("every app-identifying value in the output comes from the options", async () => {
     const sources = renderLocalSQLiteSources(await loadExample(), OPTIONS);
 
     expect(sources.kotlin).toContain("package org.example.notes.storage\n");
-    for (const symbol of [
-      "AndroidBundledSQLiteSourceIdGuard",
-      "AndroidBundledSQLiteVersionGuard",
-      "CurlewSQLite",
-    ]) {
-      expect(sources.kotlin).toContain(
-        `import org.example.notes.sqlite.${symbol}\n`,
-      );
-    }
     expect(sources.kotlin).toContain(
       'APP_PRIVATE_DATABASE_NAME = "notes.sqlite3"',
     );
@@ -39,16 +26,37 @@ describe("render options", () => {
     }
   });
 
-  // An app taking curlew-sqlite as published supplies no binding package. The default
-  // has to be the package that library's JNI shim resolves its binding class in, or the
-  // emitted imports would not compile against it.
-  test("defaults the binding package to curlew-sqlite's published one", async () => {
-    const { bindingPackage: _omitted, ...rest } = OPTIONS;
-    const { kotlin } = renderLocalSQLiteSources(await loadExample(), rest);
+  // The binding is imported from the package curlew-sqlite publishes it in, which its
+  // JNI shim resolves the binding class by; any other package would not compile against
+  // that library.
+  test("imports the binding from curlew-sqlite's published package", async () => {
+    const { kotlin } = renderLocalSQLiteSources(await loadExample(), OPTIONS);
 
-    expect(DEFAULT_BINDING_PACKAGE).toBe("com.curlewlabs.sqlite");
-    expect(kotlin).toContain("import com.curlewlabs.sqlite.CurlewSQLite\n");
+    for (const symbol of [
+      "AndroidBundledSQLiteSourceIdGuard",
+      "AndroidBundledSQLiteVersionGuard",
+      "CurlewSQLite",
+    ]) {
+      expect(kotlin).toContain(`import com.curlewlabs.sqlite.${symbol}\n`);
+    }
   });
+
+  // An option the renderer does not read would be dropped silently, and the output would
+  // differ from what the caller asked for. bindingPackage is the case that motivates it:
+  // a caller still passing it would otherwise get imports from another package than the
+  // one it named.
+  test.each(["bindingPackage", "kotlinPackages"])(
+    "refuses the unknown option %p",
+    async (key) => {
+      const spec = await loadExample();
+      expect(() =>
+        renderLocalSQLiteSources(spec, {
+          ...OPTIONS,
+          [key]: "org.example.notes.sqlite",
+        } as LocalSQLiteRenderOptions),
+      ).toThrow(`unknown render option "${key}"`);
+    },
+  );
 
   // Each value is emitted verbatim into a Kotlin package/import line or a string
   // literal, so an unchecked one would produce source that does not compile, or a
@@ -56,8 +64,8 @@ describe("render options", () => {
   test.each([
     ["kotlinPackage", "org.example.Notes"],
     ["kotlinPackage", "org.example..notes"],
-    ["bindingPackage", "org.example.notes;"],
-    ["bindingPackage", ""],
+    ["kotlinPackage", "org.example.notes;"],
+    ["kotlinPackage", ""],
   ] as const)("rejects %s %p", async (key, value) => {
     const spec = await loadExample();
     expect(() =>
@@ -71,7 +79,7 @@ describe("render options", () => {
   // above admits because a keyword is a lowercase word.
   test.each([
     ["kotlinPackage", "org.example.object", "object"],
-    ["bindingPackage", "org.when.sqlite", "when"],
+    ["kotlinPackage", "org.when.storage", "when"],
   ] as const)("rejects %s %p", async (key, value, keyword) => {
     const spec = await loadExample();
     expect(() =>

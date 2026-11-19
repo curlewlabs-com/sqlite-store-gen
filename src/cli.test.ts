@@ -29,8 +29,6 @@ describe("command line", () => {
         EXAMPLE_SPEC_PATH,
         "--kotlin-package",
         "org.example.reader.storage",
-        "--binding-package",
-        "org.example.reader.sqlite",
         "--database-file-name",
         "reader.sqlite3",
         "--notice",
@@ -47,7 +45,6 @@ describe("command line", () => {
 
       const expected = renderLocalSQLiteSources(await loadExample(), {
         kotlinPackage: "org.example.reader.storage",
-        bindingPackage: "org.example.reader.sqlite",
         databaseFileName: "reader.sqlite3",
         notice: "// header",
       });
@@ -75,6 +72,34 @@ describe("command line", () => {
       ]);
       expect(result.status).toBe(1);
       expect(result.stderr).toContain("--database-file-name is required");
+      expect(() => readFileSync(join(dir, "Store.kt"))).toThrow();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // --binding-package was an option until 0.3.0. A command line still passing it must
+  // fail rather than write Kotlin importing from another package than the one it named.
+  test("refuses an unknown flag and writes nothing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "sqlite-store-gen-cli-"));
+    try {
+      const result = run([
+        EXAMPLE_SPEC_PATH,
+        "--kotlin-package",
+        "org.example.reader.storage",
+        "--binding-package",
+        "org.example.reader.sqlite",
+        "--database-file-name",
+        "reader.sqlite3",
+        "--kotlin-out",
+        join(dir, "Store.kt"),
+        "--swift-out",
+        join(dir, "Store.swift"),
+        "--dart-out",
+        join(dir, "store_channel.dart"),
+      ]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("Unknown option '--binding-package'");
       expect(() => readFileSync(join(dir, "Store.kt"))).toThrow();
     } finally {
       rmSync(dir, { recursive: true, force: true });

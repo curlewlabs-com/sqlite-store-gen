@@ -1,9 +1,6 @@
 // The package's public surface: load and normalize a spec, and render it.
 
-export {
-  DEFAULT_BINDING_PACKAGE,
-  type LocalSQLiteRenderOptions,
-} from "./options";
+export type { LocalSQLiteRenderOptions } from "./options";
 export {
   renderLocalSQLiteSources,
   type LocalSQLiteRenderedSources,
